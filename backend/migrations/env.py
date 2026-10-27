@@ -6,14 +6,14 @@ from app.db.base import Base
 
 
 config = context.config
-
-database_url = get_settings().database_url
-config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
-
 target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
+    config.set_main_option(
+        "sqlalchemy.url",
+        get_settings().database_url.replace("%", "%%"),
+    )
     context.configure(
         url=config.get_main_option("sqlalchemy.url"),
         target_metadata=target_metadata,
@@ -27,6 +27,10 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
+    config.set_main_option(
+        "sqlalchemy.url",
+        get_settings().database_url.replace("%", "%%"),
+    )
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
@@ -42,6 +46,8 @@ def run_migrations_online() -> None:
 
         with context.begin_transaction():
             context.run_migrations()
+
+    connectable.dispose()
 
 
 if context.is_offline_mode():
