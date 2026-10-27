@@ -5,6 +5,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from app.api.v1.router import api_router
 from app.db.session import get_db
 
 
@@ -12,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 app = FastAPI(title="Room Rental Platform API")
+app.include_router(api_router)
 
 
 @app.get("/health")
