@@ -7,11 +7,13 @@ import {
   registerAccount,
   type UserProfile,
 } from "./api";
+import DashboardPage, { type DashboardRole } from "./pages/DashboardPage";
 import ListingDetailsPage from "./pages/ListingDetailsPage";
 import ListingsPage from "./pages/ListingsPage";
 import "./App.css";
 
 type AuthMode = "login" | "register";
+type RegistrationRole = "tenant" | "landlord";
 type FormFields = {
   fullName: string;
   phoneNo: string;
@@ -28,11 +30,27 @@ const emptyForm: FormFields = {
   businessName: "",
 };
 
+function getDashboardRole(roles: string[]): DashboardRole {
+  if (roles.includes("admin")) {
+    return "admin";
+  }
+  if (roles.includes("landlord")) {
+    return "landlord";
+  }
+  if (roles.includes("tenant")) {
+    return "tenant";
+  }
+
+  throw new Error("Your account has no supported role. Please contact support.");
+}
+
 function App() {
   const [pathname, setPathname] = useState(window.location.pathname);
   const [mode, setMode] = useState<AuthMode>(
     window.location.pathname === "/register" ? "register" : "login",
   );
+  const [registrationRole, setRegistrationRole] =
+    useState<RegistrationRole>("tenant");
   const [fields, setFields] = useState<FormFields>(emptyForm);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
@@ -72,11 +90,13 @@ function App() {
           phone_no: fields.phoneNo,
           email: fields.email,
           password: fields.password,
-          ...(fields.businessName.trim()
+          role: registrationRole,
+          ...(registrationRole === "landlord" && fields.businessName.trim()
             ? { business_name: fields.businessName }
             : {}),
         });
         setMode("login");
+        setRegistrationRole("tenant");
         setFields((currentFields) => ({
           ...emptyForm,
           email: currentFields.email,
@@ -91,10 +111,11 @@ function App() {
         password: fields.password,
       });
       const currentProfile = await getMyProfile(tokenResponse.access_token);
+      const dashboardRole = getDashboardRole(currentProfile.roles);
       setAccessToken(tokenResponse.access_token);
       setProfile(currentProfile);
       setFields(emptyForm);
-      navigate("/profile");
+      navigate(`/${dashboardRole}`);
     } catch (error: unknown) {
       setErrorMessage(
         error instanceof Error
@@ -127,57 +148,21 @@ function App() {
     return <ListingsPage />;
   }
 
-  if (pathname === "/profile" && profile !== null && accessToken !== null) {
-    return (
-      <main className="page-shell">
-        <section className="profile-card" aria-labelledby="profile-heading">
-          <p className="eyebrow">Room Rentals</p>
-          <h1 id="profile-heading">Welcome, {profile.full_name}</h1>
-          <p className="intro">
-            You are signed in. Your account information is shown below.
-          </p>
-
-          <dl className="profile-list">
-            <div>
-              <dt>Email</dt>
-              <dd>{profile.email}</dd>
-            </div>
-            <div>
-              <dt>Phone</dt>
-              <dd>{profile.phone_no}</dd>
-            </div>
-            {profile.business_name !== null && (
-              <div>
-                <dt>Business</dt>
-                <dd>{profile.business_name}</dd>
-              </div>
-            )}
-            <div>
-              <dt>Account roles</dt>
-              <dd className="role-list">
-                {profile.roles.map((role) => (
-                  <span className="role-chip" key={role}>
-                    {role}
-                  </span>
-                ))}
-              </dd>
-            </div>
-          </dl>
-
-          <button
-            className="primary-button"
-            onClick={handleSignOut}
-            type="button"
-          >
-            Sign out
-          </button>
-          <p className="security-note">
-            Your access token is kept in memory only. You will need to sign in
-            again after reloading this page.
-          </p>
-        </section>
-      </main>
-    );
+  if (
+    profile !== null &&
+    accessToken !== null &&
+    ["tenant", "landlord", "admin"].includes(pathname.slice(1))
+  ) {
+    const dashboardRole = getDashboardRole(profile.roles);
+    if (pathname === `/${dashboardRole}`) {
+      return (
+        <DashboardPage
+          onSignOut={handleSignOut}
+          profile={profile}
+          role={dashboardRole}
+        />
+      );
+    }
   }
 
   const isRegistering = mode === "register";
@@ -191,7 +176,7 @@ function App() {
         </h1>
         <p className="intro">
           {isRegistering
-            ? "Create an account to find your next room."
+            ? "Choose how you’ll use Room Rentals."
             : "Sign in to continue to your account."}
         </p>
 
@@ -209,6 +194,35 @@ function App() {
         <form className="auth-form" onSubmit={handleSubmit}>
           {isRegistering && (
             <>
+              <fieldset className="role-picker">
+                <legend>I want to...</legend>
+                <div className="role-options">
+                  <button
+                    aria-pressed={registrationRole === "tenant"}
+                    className={`role-option${registrationRole === "tenant" ? " selected" : ""}`}
+                    onClick={() => setRegistrationRole("tenant")}
+                    type="button"
+                  >
+                    <span className="role-option-title">I need a room</span>
+                    <span className="role-option-description">
+                      Browse and find a place to rent
+                    </span>
+                  </button>
+                  <button
+                    aria-pressed={registrationRole === "landlord"}
+                    className={`role-option${registrationRole === "landlord" ? " selected" : ""}`}
+                    onClick={() => setRegistrationRole("landlord")}
+                    type="button"
+                  >
+                    <span className="role-option-title">
+                      I have a room to rent
+                    </span>
+                    <span className="role-option-description">
+                      Offer a room to prospective tenants
+                    </span>
+                  </button>
+                </div>
+              </fieldset>
               <label>
                 Full name
                 <input
@@ -256,23 +270,18 @@ function App() {
             />
           </label>
 
-          {isRegistering && (
-            <>
-              <label>
-                Business name <span className="optional-label">Optional</span>
-                <input
-                  autoComplete="organization"
-                  maxLength={150}
-                  onChange={(event) =>
-                    updateField("businessName", event.target.value)
-                  }
-                  value={fields.businessName}
-                />
-              </label>
-              <p className="security-note">
-                New accounts are registered with the tenant role.
-              </p>
-            </>
+          {isRegistering && registrationRole === "landlord" && (
+            <label>
+              Business name <span className="optional-label">Optional</span>
+              <input
+                autoComplete="organization"
+                maxLength={150}
+                onChange={(event) =>
+                  updateField("businessName", event.target.value)
+                }
+                value={fields.businessName}
+              />
+            </label>
           )}
 
           <button

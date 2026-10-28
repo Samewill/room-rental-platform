@@ -3,6 +3,7 @@ export interface RegisterRequest {
   phone_no: string;
   email: string;
   password: string;
+  role: "tenant" | "landlord";
   business_name?: string;
 }
 

@@ -31,6 +31,7 @@ class AuthServiceTests(unittest.TestCase):
             phone_no="+27123456789",
             email="Test.User@example.com",
             password="SecurePassword123",
+            role="tenant",
         )
 
     def test_register_hashes_password_assigns_tenant_and_commits(self) -> None:
@@ -54,6 +55,29 @@ class AuthServiceTests(unittest.TestCase):
         self.db.commit.assert_called_once()
         self.db.rollback.assert_not_called()
 
+    def test_register_assigns_selected_landlord_role(self) -> None:
+        def add_user(user: User) -> User:
+            user.user_id = 43
+            return user
+
+        self.service._users.add.side_effect = add_user
+        self.service._roles.get_by_name.return_value = Role(
+            role_id=4,
+            name="landlord",
+        )
+
+        with patch(
+            "app.services.auth_service.hash_password",
+            return_value="argon2-hash",
+        ):
+            self.service.register(
+                self.registration.model_copy(update={"role": "landlord"}),
+            )
+
+        self.service._roles.get_by_name.assert_called_once_with("landlord")
+        self.service._roles.assign_to_user.assert_called_once_with(43, 4)
+        self.db.commit.assert_called_once()
+
     def test_register_rejects_existing_email(self) -> None:
         self.service._users.get_by_email.return_value = User(user_id=7)
 
@@ -74,12 +98,13 @@ class AuthServiceTests(unittest.TestCase):
         self.service._users.add.assert_not_called()
         self.db.commit.assert_not_called()
 
-    def test_register_rolls_back_if_tenant_role_is_missing(self) -> None:
+    def test_register_rolls_back_if_selected_role_is_missing(self) -> None:
         self.service._roles.get_by_name.return_value = None
 
         with self.assertRaises(RoleConfigurationError):
             self.service.register(self.registration)
 
+        self.service._roles.get_by_name.assert_called_once_with("tenant")
         self.db.rollback.assert_called_once()
         self.db.commit.assert_not_called()
         self.service._users.add.assert_not_called()

@@ -207,21 +207,38 @@ export default function ListingsPage() {
               Browse rooms currently available for rent.
             </p>
           </div>
-          <a
-            href="/login"
-            style={{
-              background: "white",
-              border: "1px solid #dfe3e7",
-              borderRadius: 8,
-              color: "#244b35",
-              fontWeight: 600,
-              padding: "10px 16px",
-              textDecoration: "none",
-              whiteSpace: "nowrap",
-            }}
-          >
-            Sign in
-          </a>
+          <nav aria-label="Account" style={{ display: "flex", gap: 10 }}>
+            <a
+              href="/login"
+              style={{
+                background: "white",
+                border: "1px solid #dfe3e7",
+                borderRadius: 8,
+                color: "#244b35",
+                fontWeight: 600,
+                padding: "10px 16px",
+                textDecoration: "none",
+                whiteSpace: "nowrap",
+              }}
+            >
+              Sign in
+            </a>
+            <a
+              href="/register"
+              style={{
+                background: "#244b35",
+                border: "1px solid #244b35",
+                borderRadius: 8,
+                color: "white",
+                fontWeight: 600,
+                padding: "10px 16px",
+                textDecoration: "none",
+                whiteSpace: "nowrap",
+              }}
+            >
+              Create account
+            </a>
+          </nav>
         </header>
 
         {isLoading && (

@@ -17,7 +17,6 @@ class RoleConfigurationError(Exception):
 
 
 class AuthService:
-    TENANT_ROLE = "tenant"
     UNIQUE_USER_CONSTRAINTS = {"users_email_key", "users_phone_no_key"}
 
     def __init__(self, db: Session) -> None:
@@ -37,11 +36,11 @@ class AuthService:
                 "An account with these details already exists."
             )
 
-        tenant_role = self._roles.get_by_name(self.TENANT_ROLE)
-        if tenant_role is None:
+        selected_role = self._roles.get_by_name(request.role)
+        if selected_role is None:
             self._db.rollback()
             raise RoleConfigurationError(
-                "The tenant role is not configured."
+                f"The {request.role} role is not configured."
             )
 
         user = User(
@@ -54,7 +53,7 @@ class AuthService:
 
         try:
             self._users.add(user)
-            self._roles.assign_to_user(user.user_id, tenant_role.role_id)
+            self._roles.assign_to_user(user.user_id, selected_role.role_id)
             self._db.commit()
         except IntegrityError as exc:
             self._db.rollback()

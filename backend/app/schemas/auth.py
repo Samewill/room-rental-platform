@@ -1,6 +1,13 @@
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, EmailStr, Field, SecretStr, StringConstraints
+from pydantic import (
+    BaseModel,
+    EmailStr,
+    Field,
+    SecretStr,
+    StringConstraints,
+    model_validator,
+)
 
 
 FullName = Annotated[
@@ -22,7 +29,14 @@ class RegisterRequest(BaseModel):
     phone_no: PhoneNumber
     email: EmailStr
     password: SecretStr = Field(min_length=8, max_length=128)
+    role: Literal["tenant", "landlord"]
     business_name: BusinessName | None = None
+
+    @model_validator(mode="after")
+    def validate_business_name_role(self) -> "RegisterRequest":
+        if self.role == "tenant" and self.business_name is not None:
+            raise ValueError("business_name is only available to landlord accounts.")
+        return self
 
 
 class LoginRequest(BaseModel):

@@ -51,7 +51,7 @@ def register(
         ) from exc
 
     return UserResponse.model_validate(user).model_copy(
-        update={"roles": [AuthService.TENANT_ROLE]},
+        update={"roles": [request.role]},
     )
 
 

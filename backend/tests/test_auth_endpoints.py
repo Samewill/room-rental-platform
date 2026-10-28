@@ -11,7 +11,6 @@ from app.db.session import get_db
 from app.models.role import Role
 from app.models.user import User
 from app.repositories.role_repository import RoleRepository
-from app.schemas.auth import RegisterRequest
 from app.services.auth_service import AccountAlreadyExistsError, AuthService
 from app.services.user_service import UserService
 
@@ -35,7 +34,7 @@ class AuthEndpointTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.app.dependency_overrides.clear()
 
-    def test_registration_returns_safe_profile_with_tenant_role(self) -> None:
+    def test_registration_returns_safe_profile_with_selected_role(self) -> None:
         with patch.object(AuthService, "register", return_value=self.user) as register:
             response = self.client.post(
                 "/api/v1/auth/register",
@@ -44,14 +43,44 @@ class AuthEndpointTests(unittest.TestCase):
                     "phone_no": "+27123456789",
                     "email": "test.user@example.com",
                     "password": "SecurePassword123",
-                    "role": "admin",
+                    "role": "landlord",
                 },
             )
 
         self.assertEqual(response.status_code, 201)
-        self.assertEqual(response.json()["roles"], ["tenant"])
+        self.assertEqual(response.json()["roles"], ["landlord"])
         self.assertNotIn("password_hash", response.json())
-        self.assertNotIn("role", RegisterRequest.model_fields)
+        register.assert_called_once()
+        self.assertEqual(register.call_args.args[0].role, "landlord")
+
+    def test_registration_rejects_admin_self_registration(self) -> None:
+        response = self.client.post(
+            "/api/v1/auth/register",
+            json={
+                "full_name": "Test Admin",
+                "phone_no": "+27123456789",
+                "email": "admin@example.com",
+                "password": "SecurePassword123",
+                "role": "admin",
+            },
+        )
+
+        self.assertEqual(response.status_code, 422)
+
+    def test_tenant_registration_rejects_business_name(self) -> None:
+        response = self.client.post(
+            "/api/v1/auth/register",
+            json={
+                "full_name": "Test Tenant",
+                "phone_no": "+27123456789",
+                "email": "tenant@example.com",
+                "password": "SecurePassword123",
+                "role": "tenant",
+                "business_name": "Not for tenants",
+            },
+        )
+
+        self.assertEqual(response.status_code, 422)
 
     def test_registration_returns_conflict_for_existing_account(self) -> None:
         with patch.object(
@@ -68,6 +97,7 @@ class AuthEndpointTests(unittest.TestCase):
                     "phone_no": "+27123456789",
                     "email": "test.user@example.com",
                     "password": "SecurePassword123",
+                    "role": "tenant",
                 },
             )
 
