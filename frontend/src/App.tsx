@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 
 import {
@@ -7,6 +7,8 @@ import {
   registerAccount,
   type UserProfile,
 } from "./api";
+import ListingDetailsPage from "./pages/ListingDetailsPage";
+import ListingsPage from "./pages/ListingsPage";
 import "./App.css";
 
 type AuthMode = "login" | "register";
@@ -27,13 +29,31 @@ const emptyForm: FormFields = {
 };
 
 function App() {
-  const [mode, setMode] = useState<AuthMode>("login");
+  const [pathname, setPathname] = useState(window.location.pathname);
+  const [mode, setMode] = useState<AuthMode>(
+    window.location.pathname === "/register" ? "register" : "login",
+  );
   const [fields, setFields] = useState<FormFields>(emptyForm);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    function syncPathname() {
+      setPathname(window.location.pathname);
+      setMode(window.location.pathname === "/register" ? "register" : "login");
+    }
+
+    window.addEventListener("popstate", syncPathname);
+    return () => window.removeEventListener("popstate", syncPathname);
+  }, []);
+
+  function navigate(path: string) {
+    window.history.pushState(null, "", path);
+    setPathname(path);
+  }
 
   function updateField(field: keyof FormFields, value: string) {
     setFields((currentFields) => ({ ...currentFields, [field]: value }));
@@ -61,6 +81,7 @@ function App() {
           ...emptyForm,
           email: currentFields.email,
         }));
+        navigate("/login");
         setNotice("Your account is ready. Sign in with your new credentials.");
         return;
       }
@@ -73,6 +94,7 @@ function App() {
       setAccessToken(tokenResponse.access_token);
       setProfile(currentProfile);
       setFields(emptyForm);
+      navigate("/profile");
     } catch (error: unknown) {
       setErrorMessage(
         error instanceof Error
@@ -89,10 +111,23 @@ function App() {
     setProfile(null);
     setFields(emptyForm);
     setErrorMessage(null);
-    setNotice("You have signed out on this device.");
+    setNotice(null);
+    navigate("/");
   }
 
-  if (profile !== null && accessToken !== null) {
+  const listingMatch = pathname.match(/^\/listings\/(\d+)\/?$/);
+  if (listingMatch !== null) {
+    const listingId = Number(listingMatch[1]);
+    if (Number.isSafeInteger(listingId) && listingId > 0) {
+      return <ListingDetailsPage listingId={listingId} />;
+    }
+  }
+
+  if (pathname === "/") {
+    return <ListingsPage />;
+  }
+
+  if (pathname === "/profile" && profile !== null && accessToken !== null) {
     return (
       <main className="page-shell">
         <section className="profile-card" aria-labelledby="profile-heading">
@@ -259,7 +294,9 @@ function App() {
             className="text-button"
             disabled={isSubmitting}
             onClick={() => {
-              setMode(isRegistering ? "login" : "register");
+              const nextMode = isRegistering ? "login" : "register";
+              setMode(nextMode);
+              navigate(nextMode === "register" ? "/register" : "/login");
               setErrorMessage(null);
               setNotice(null);
             }}
@@ -267,6 +304,11 @@ function App() {
           >
             {isRegistering ? "Sign in" : "Create an account"}
           </button>
+        </p>
+        <p className="switch-mode">
+          <a className="text-button" href="/">
+            Browse rooms
+          </a>
         </p>
       </section>
     </main>

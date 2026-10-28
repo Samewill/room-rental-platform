@@ -4,6 +4,14 @@ from decimal import Decimal
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class ListingPhotoResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    photo_id: int
+    url: str = Field(max_length=500)
+    uploaded_at: datetime
+
+
 class ListingResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -18,3 +26,4 @@ class ListingResponse(BaseModel):
     date_available: date
     status: str = Field(max_length=7)
     created_at: datetime
+    photos: list[ListingPhotoResponse] = Field(default_factory=list)

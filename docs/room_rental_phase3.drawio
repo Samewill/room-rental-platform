@@ -1,0 +1,100 @@
+<mxfile host="app.diagrams.net">
+  <diagram id="room-rental-phase3" name="Room Rental Platform ERD">
+    <mxGraphModel dx="1400" dy="1200" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="1500" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="users" value="&lt;b&gt;USERS&lt;/b&gt;&lt;br&gt;PK user_id : BIGINT IDENTITY&lt;br&gt;full_name : VARCHAR(150)&lt;br&gt;phone_no : VARCHAR(20) UNIQUE&lt;br&gt;email : VARCHAR(255) UNIQUE NULL&lt;br&gt;password_hash : VARCHAR(255) NULL&lt;br&gt;role : VARCHAR(8)&lt;br&gt;business_name : VARCHAR(150) NULL&lt;br&gt;created_at : TIMESTAMP" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=8;spacingTop=8;fillColor=#d5e8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="410" y="40" width="300" height="230" as="geometry" />
+        </mxCell>
+        <mxCell id="areas" value="&lt;b&gt;AREAS&lt;/b&gt;&lt;br&gt;PK area_id : BIGINT IDENTITY&lt;br&gt;name : VARCHAR(150) UNIQUE" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=8;spacingTop=8;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="40" y="360" width="300" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="listings" value="&lt;b&gt;LISTINGS&lt;/b&gt;&lt;br&gt;PK listing_id : BIGINT IDENTITY&lt;br&gt;FK landlord_id : BIGINT -&gt; users.user_id&lt;br&gt;FK area_id : BIGINT -&gt; areas.area_id&lt;br&gt;title : VARCHAR(150)&lt;br&gt;description : TEXT&lt;br&gt;room_type : VARCHAR(14)&lt;br&gt;monthly_rent : NUMERIC(10,2)&lt;br&gt;deposit_amount : NUMERIC(10,2)&lt;br&gt;address : VARCHAR(255)&lt;br&gt;date_available : DATE&lt;br&gt;status : VARCHAR(7)&lt;br&gt;created_at : TIMESTAMP" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=8;spacingTop=8;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="40" y="540" width="300" height="300" as="geometry" />
+        </mxCell>
+        <mxCell id="listing_photos" value="&lt;b&gt;LISTING_PHOTOS&lt;/b&gt;&lt;br&gt;PK photo_id : BIGINT IDENTITY&lt;br&gt;FK listing_id : BIGINT -&gt; listings.listing_id&lt;br&gt;url : VARCHAR(500)&lt;br&gt;uploaded_at : TIMESTAMP" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=8;spacingTop=8;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="40" y="930" width="300" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="listing_moderation" value="&lt;b&gt;LISTING_MODERATION&lt;/b&gt;&lt;br&gt;PK moderation_id : BIGINT IDENTITY&lt;br&gt;FK listing_id : BIGINT -&gt; listings.listing_id&lt;br&gt;FK admin_id : BIGINT -&gt; users.user_id&lt;br&gt;decision : VARCHAR(8)&lt;br&gt;reason : TEXT NULL&lt;br&gt;decided_at : TIMESTAMP" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=8;spacingTop=8;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1150" width="300" height="190" as="geometry" />
+        </mxCell>
+        <mxCell id="amenities" value="&lt;b&gt;AMENITIES&lt;/b&gt;&lt;br&gt;PK amenity_id : BIGINT IDENTITY&lt;br&gt;name : VARCHAR(100) UNIQUE" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=8;spacingTop=8;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="410" y="360" width="300" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="listing_amenities" value="&lt;b&gt;LISTING_AMENITIES&lt;/b&gt;&lt;br&gt;PK, FK listing_id : BIGINT -&gt; listings.listing_id&lt;br&gt;PK, FK amenity_id : BIGINT -&gt; amenities.amenity_id&lt;br&gt;Composite primary key (listing_id, amenity_id)" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=8;spacingTop=8;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="410" y="540" width="300" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="contact_request" value="&lt;b&gt;CONTACT_REQUEST&lt;/b&gt;&lt;br&gt;PK request_id : BIGINT IDENTITY&lt;br&gt;FK listing_id : BIGINT -&gt; listings.listing_id&lt;br&gt;FK tenant_id : BIGINT -&gt; users.user_id&lt;br&gt;status : VARCHAR(8)&lt;br&gt;requested_at : TIMESTAMP" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=8;spacingTop=8;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="410" y="760" width="300" height="170" as="geometry" />
+        </mxCell>
+        <mxCell id="review" value="&lt;b&gt;REVIEW&lt;/b&gt;&lt;br&gt;PK review_id : BIGINT IDENTITY&lt;br&gt;FK listing_id : BIGINT -&gt; listings.listing_id&lt;br&gt;FK tenant_id : BIGINT -&gt; users.user_id&lt;br&gt;rating : SMALLINT CHECK (1-5)&lt;br&gt;comment : TEXT&lt;br&gt;created_at : TIMESTAMP" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=8;spacingTop=8;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="410" y="1010" width="300" height="190" as="geometry" />
+        </mxCell>
+        <mxCell id="report" value="&lt;b&gt;REPORT&lt;/b&gt;&lt;br&gt;PK report_id : BIGINT IDENTITY&lt;br&gt;FK listing_id : BIGINT -&gt; listings.listing_id&lt;br&gt;FK tenant_id : BIGINT -&gt; users.user_id&lt;br&gt;FK admin_id : BIGINT -&gt; users.user_id NULL&lt;br&gt;reason : VARCHAR(15)&lt;br&gt;status : VARCHAR(12)&lt;br&gt;created_at : TIMESTAMP" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=8;spacingTop=8;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="780" y="1010" width="300" height="210" as="geometry" />
+        </mxCell>
+        <mxCell id="saved_search" value="&lt;b&gt;SAVED_SEARCH&lt;/b&gt;&lt;br&gt;PK saved_search_id : BIGINT IDENTITY&lt;br&gt;FK tenant_id : BIGINT -&gt; users.user_id&lt;br&gt;budget : NUMERIC(10,2)&lt;br&gt;location : VARCHAR(150)&lt;br&gt;search_info : TEXT&lt;br&gt;alerts_enabled : BOOLEAN&lt;br&gt;created_at : TIMESTAMP" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=8;spacingTop=8;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="780" y="40" width="300" height="210" as="geometry" />
+        </mxCell>
+        <mxCell id="conversation" value="&lt;b&gt;CONVERSATION&lt;/b&gt;&lt;br&gt;PK conversation_id : BIGINT IDENTITY&lt;br&gt;FK user_id : BIGINT -&gt; users.user_id&lt;br&gt;current_step : VARCHAR(100)&lt;br&gt;started_at : TIMESTAMP" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=8;spacingTop=8;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="780" y="360" width="300" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="message" value="&lt;b&gt;MESSAGE&lt;/b&gt;&lt;br&gt;PK message_id : BIGINT IDENTITY&lt;br&gt;FK conversation_id : BIGINT -&gt; conversation.conversation_id&lt;br&gt;direction : VARCHAR(8)&lt;br&gt;message_type : VARCHAR(8)&lt;br&gt;content : TEXT&lt;br&gt;sent_at : TIMESTAMP" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=8;spacingTop=8;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="780" y="620" width="300" height="190" as="geometry" />
+        </mxCell>
+        <mxCell id="fk_listings_landlord" value="landlord_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;startArrow=none;strokeColor=#666666;" edge="1" parent="1" source="listings" target="users">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk_listings_area" value="area_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;startArrow=none;strokeColor=#666666;" edge="1" parent="1" source="listings" target="areas">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk_listing_photos" value="listing_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;startArrow=none;strokeColor=#666666;" edge="1" parent="1" source="listing_photos" target="listings">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk_listing_moderation_listing" value="listing_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;startArrow=none;strokeColor=#666666;" edge="1" parent="1" source="listing_moderation" target="listings">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk_listing_moderation_admin" value="admin_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;startArrow=none;strokeColor=#666666;" edge="1" parent="1" source="listing_moderation" target="users">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk_listing_amenities_listing" value="listing_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;startArrow=none;strokeColor=#666666;" edge="1" parent="1" source="listing_amenities" target="listings">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk_listing_amenities_amenity" value="amenity_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;startArrow=none;strokeColor=#666666;" edge="1" parent="1" source="listing_amenities" target="amenities">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk_contact_request_listing" value="listing_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;startArrow=none;strokeColor=#666666;" edge="1" parent="1" source="contact_request" target="listings">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk_contact_request_tenant" value="tenant_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;startArrow=none;strokeColor=#666666;" edge="1" parent="1" source="contact_request" target="users">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk_review_listing" value="listing_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;startArrow=none;strokeColor=#666666;" edge="1" parent="1" source="review" target="listings">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk_review_tenant" value="tenant_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;startArrow=none;strokeColor=#666666;" edge="1" parent="1" source="review" target="users">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk_report_listing" value="listing_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;startArrow=none;strokeColor=#666666;" edge="1" parent="1" source="report" target="listings">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk_report_tenant" value="tenant_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;startArrow=none;strokeColor=#666666;" edge="1" parent="1" source="report" target="users">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk_report_admin" value="admin_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;startArrow=none;strokeColor=#666666;" edge="1" parent="1" source="report" target="users">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk_saved_search_tenant" value="tenant_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;startArrow=none;strokeColor=#666666;" edge="1" parent="1" source="saved_search" target="users">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk_conversation_user" value="user_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;startArrow=none;strokeColor=#666666;" edge="1" parent="1" source="conversation" target="users">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk_message_conversation" value="conversation_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;startArrow=none;strokeColor=#666666;" edge="1" parent="1" source="message" target="conversation">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
