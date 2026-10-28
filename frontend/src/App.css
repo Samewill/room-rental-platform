@@ -1,0 +1,218 @@
+#root {
+  background: #f6f7f8;
+  min-height: 100vh;
+}
+
+.page-shell {
+  align-items: flex-start;
+  background: #f6f7f8;
+  display: flex;
+  justify-content: flex-start;
+  margin: 0 auto;
+  min-height: 100vh;
+  max-width: 1280px;
+  padding: 40px clamp(20px, 5vw, 48px);
+}
+
+.auth-card,
+.profile-card {
+  background: #fff;
+  border: 1px solid #e7e9ed;
+  border-radius: 14px;
+  box-shadow: 0 2px 8px rgb(26 45 76 / 4%);
+  max-width: 460px;
+  padding: 32px;
+  width: 100%;
+}
+
+.eyebrow {
+  color: #547361;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  margin: 0 0 8px;
+  text-transform: uppercase;
+}
+
+h1 {
+  color: #182b36;
+  font-size: clamp(27px, 5vw, 34px);
+  letter-spacing: -0.04em;
+  line-height: 1.15;
+  margin: 0;
+}
+
+.intro {
+  color: #65747d;
+  line-height: 1.6;
+  margin: 10px 0 24px;
+}
+
+.auth-form {
+  display: grid;
+  gap: 17px;
+}
+
+.auth-form label {
+  color: #344852;
+  display: grid;
+  font-size: 14px;
+  font-weight: 650;
+  gap: 7px;
+}
+
+.auth-form input {
+  background: #fff;
+  border: 1px solid #dfe3e7;
+  border-radius: 8px;
+  color: #182b36;
+  font: inherit;
+  font-size: 15px;
+  min-height: 46px;
+  outline: none;
+  padding: 10px 12px;
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+  width: 100%;
+}
+
+.auth-form input:focus {
+  border-color: #6b947d;
+  box-shadow: 0 0 0 3px rgb(84 115 97 / 14%);
+}
+
+.optional-label {
+  color: #77868d;
+  font-size: 12px;
+  font-weight: 450;
+}
+
+.primary-button {
+  align-items: center;
+  background: #176b55;
+  border: 0;
+  border-radius: 8px;
+  color: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  justify-content: center;
+  margin-top: 4px;
+  min-height: 48px;
+  padding: 11px 16px;
+  transition: background-color 140ms ease, transform 140ms ease;
+  width: 100%;
+}
+
+.primary-button:hover:not(:disabled) {
+  background: #105a47;
+  transform: translateY(-1px);
+}
+
+.primary-button:focus-visible,
+.text-button:focus-visible {
+  outline: 3px solid #7bc5ae;
+  outline-offset: 3px;
+}
+
+.primary-button:disabled {
+  cursor: wait;
+  opacity: 0.68;
+}
+
+.switch-mode {
+  color: #65747d;
+  font-size: 14px;
+  margin: 24px 0 0;
+  text-align: center;
+}
+
+.text-button {
+  background: transparent;
+  border: 0;
+  color: #176b55;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  padding: 4px;
+}
+
+.text-button:disabled {
+  cursor: wait;
+  opacity: 0.68;
+}
+
+.message {
+  border-radius: 9px;
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0 0 18px;
+  padding: 11px 13px;
+}
+
+.message-error {
+  background: #fff0ef;
+  color: #a42e27;
+}
+
+.message-success {
+  background: #eaf7f1;
+  color: #176b55;
+}
+
+.profile-list {
+  border-top: 1px solid #e7ecef;
+  margin: 28px 0;
+}
+
+.profile-list div {
+  border-bottom: 1px solid #e7ecef;
+  display: grid;
+  gap: 7px;
+  padding: 15px 0;
+}
+
+.profile-list dt {
+  color: #77868d;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.profile-list dd {
+  color: #263d48;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.role-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.role-chip {
+  background: #eaf7f1;
+  border-radius: 999px;
+  color: #176b55;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 5px 10px;
+}
+
+.security-note {
+  color: #77868d;
+  font-size: 12px;
+  line-height: 1.55;
+  margin: 12px 0 0;
+}
+
+@media (max-width: 520px) {
+  .auth-card,
+  .profile-card {
+    border-radius: 12px;
+    padding: 26px 22px;
+  }
+}
