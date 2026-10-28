@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import date, datetime
 from decimal import Decimal
 
@@ -12,7 +14,7 @@ from sqlalchemy import (
     Text,
     func,
 )
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 
@@ -54,3 +56,34 @@ class Listing(Base):
         nullable=False,
         server_default=func.now(),
     )
+    photos: Mapped[list[ListingPhoto]] = relationship(
+        back_populates="listing",
+        lazy="selectin",
+        order_by="ListingPhoto.photo_id",
+    )
+
+
+class ListingPhoto(Base):
+    __tablename__ = "listing_photos"
+
+    photo_id: Mapped[int] = mapped_column(
+        BigInteger,
+        Identity(always=True),
+        primary_key=True,
+    )
+    listing_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey(
+            "listings.listing_id",
+            name="listing_photo_listing_id_fkey",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+    )
+    url: Mapped[str] = mapped_column(String(500), nullable=False)
+    uploaded_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        server_default=func.now(),
+    )
+    listing: Mapped[Listing] = relationship(back_populates="photos")

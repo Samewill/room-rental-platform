@@ -1,0 +1,106 @@
+Room Rental Platform - Phase 3, Step 1 Database Update Record
+Recorded: 2026-10-27
+
+Source requirements:
+- sample.md, Phase 3, Step 1: Prepare the database tables.
+- Existing ERD: room_rental.drawio (1).pdf.
+
+Applied to Neon PostgreSQL:
+- Alembic revision 20261027_01 was applied successfully.
+- Renamed listing to listings and listing_photo to listing_photos.
+- Added areas with an identity primary key and a unique name.
+- Added listings.area_id as a required foreign key to areas.area_id.
+- Migrated any existing suburb values to matching areas before removing listings.suburb.
+- Added amenities with an identity primary key and a unique name.
+- Added listing_amenities with a composite primary key and cascading foreign keys to listings and amenities.
+- Existing listing and photo rows at migration time: 0.
+- New area, amenity, and listing-amenity rows after migration: 0.
+- Other existing tables and relationships were left unchanged.
+
+ERD:
+- Created the editable, updated ERD at room_rental_phase3.drawio.
+- The original PDF was not overwritten; it remains as the pre-update reference.
+
+Verification:
+- Alembic reports revision 20261027_01 as head.
+- Confirmed the five Phase 3 tables exist in public.
+- Confirmed listings has area_id, no longer has suburb, and references areas.
+- Confirmed listing_amenities references listings and amenities and has the expected composite primary key.
+- Confirmed the draw.io XML parses and all relationship endpoints exist.
+- Compiled the migration Python files successfully.
+
+Notes:
+- Areas and amenities are empty and need seed records before listings can reference them.
+- The database update covers Phase 3, Step 1. Listing API code and sample data remain unimplemented.
+
+Phase 3, Step 2 progress:
+- Added backend/app/models/listing.py with the SQLAlchemy Listing model for the live listings table.
+- Mapped landlord_id and area_id as foreign keys; mapped rent and deposit as NUMERIC(10,2).
+- The PostgreSQL room_type_enum values are single_room, shared_room, bachelor_flat, and self_contained.
+- Validation: Pylance found no syntax errors; model columns, foreign-key targets, and NUMERIC precision match Neon; Python compilation passed.
+- Added backend/app/schemas/listing.py with a Pydantic ListingResponse schema using ORM attribute validation and database-aligned text and monetary constraints.
+- Validation: Pylance found no syntax errors; ORM attribute validation and rejection of overlong title and invalid monetary precision passed; Python compilation passed.
+- Added backend/app/repositories/listing_repository.py with listing lookup by ID and stable newest-first listing retrieval.
+- Repository methods perform data access only; publication and moderation eligibility must be enforced by the service layer.
+- Validation: Pylance found no syntax errors; SQLite integration checks verified newest-first ordering, deterministic tie-breaking, lookup by ID, and missing-ID behavior; Python compilation passed.
+- Added backend/app/services/listing_service.py. Public listings require status active, date_available on or before the requested date, and the latest moderation decision to be approved. Listings without an approval decision are excluded.
+- Added a repository query for each requested listing set to retrieve the latest moderation decision, ordered by decision time and moderation ID.
+- Validation: Pylance found no syntax errors or service diagnostics; SQLite integration checks verified published status, availability date, newest moderation outcome, missing decisions, and detail eligibility; Python compilation passed.
+- Added GET /api/v1/listings and GET /api/v1/listings/{listing_id}, wired through the v1 API router. Missing or non-public listings return 404; database query errors are logged and return 503.
+- Validation: Pylance found no syntax errors or endpoint diagnostics; handler checks verified success, 404, and logged 503 behavior; OpenAPI confirmed both routes are registered; Python compilation passed.
+- Added the Area ORM model, response schema, read-only repository/service, and GET /api/v1/areas endpoint.
+- Areas are returned alphabetically by name, with area_id as a deterministic tie-breaker. Database query errors are logged and return 503.
+- Validation: live Neon inspection confirmed the model matches the areas table; Pylance found no syntax errors or endpoint diagnostics; SQLite integration checks verified ordering, response conversion, logged 503 handling, and OpenAPI route registration; Python compilation passed.
+
+Phase 3 public listing page progress:
+- Added frontend/src/pages/ListingsPage.tsx to fetch and display public listings with loading, empty, retryable error, and listing-card states.
+- Initially, the backend response did not include photo URLs and cards used a placeholder. The sample-images update below records the current behavior; area IDs are still displayed.
+- API requests use the same-origin /api/v1/listings path.
+- Mounted ListingsPage through App.tsx and main.tsx.
+- Added a minimal Vite/React/TypeScript setup. The Vite development server proxies /api to the local FastAPI server at 127.0.0.1:8000.
+- Validation: npm install completed with 0 reported vulnerabilities; npm run build passed, including strict TypeScript checking and the Vite production build.
+
+Listing card component progress:
+- Extracted the reusable ListingCard component and its shared Listing response type into frontend/src/components/ListingCard.tsx.
+- Updated ListingsPage to render ListingCard without changing the fetch or loading/error behavior.
+- Validation: npm run build passed, including strict TypeScript checking and Vite production bundling; git diff --check passed.
+
+Listing grid component progress:
+- Extracted the responsive listing collection into frontend/src/components/ListingGrid.tsx.
+- Updated ListingsPage to delegate card layout and rendering to ListingGrid.
+- Validation: npm run build passed, including strict TypeScript checking and Vite production bundling; git diff --check passed.
+
+Search filters component progress:
+- Added frontend/src/components/SearchFilters.tsx as a controlled, presentational component for location, room type, and monthly rent range.
+- Negative rent values are rejected by the inputs.
+- Validation: npm run build passed, including strict TypeScript checking and Vite production bundling; git diff --check passed.
+
+Client-side listing filtering progress:
+- Connected location, room type, and monthly rent range controls to the fetched public listings.
+- Location matches listing addresses or the area name returned by GET /api/v1/areas; matching is case-insensitive.
+- Added filtered-result count and a distinct no-match message. Listings are still fetched from the API without filter query parameters.
+- Validation: npm run build passed, including strict TypeScript checking and Vite production bundling; git diff --check passed.
+
+Listing details page progress:
+- Added frontend/src/pages/ListingDetailsPage.tsx to fetch and display one listing with loading, not-found, error, and detail states.
+- Added View details links on listing cards and path-based App routing for /listings/{listing_id}.
+- Initially, the detail page used a photo placeholder because the API response had no photo URLs. The sample-images update below records the current gallery behavior; the page still displays the area ID.
+- Validation: npm run build passed, including strict TypeScript checking and Vite production bundling; git diff --check passed.
+
+Johannesburg sample data:
+- Added five areas: Braamfontein, Melville, Rosebank, Soweto, and Sandton.
+- Added four amenities: Wi-Fi, Furnished, Parking, and Laundry.
+- Added four clearly labelled fictional demo listings in Braamfontein, Melville, Rosebank, and Sandton, with rent/deposit values, current/past availability dates, and active status.
+- Added a demo landlord and demo moderator with example.test email addresses and no passwords. These are sample-only accounts and cannot log in.
+- Added four approved moderation records and nine listing-amenity links so the demo listings pass the public-listing rules.
+- The sample listing room types use the actual PostgreSQL enum values: single_room, shared_room, and bachelor_flat. Updated the frontend filter options to match the database enum labels.
+- No schema or migration changes were made for seeding.
+- Validation: live Neon service query returned all four public demo listings and the five Johannesburg areas; GET /api/v1/listings returned 4 records and GET /api/v1/areas returned 5; browser verification displayed all four listings, location filtering narrowed to Rosebank, and the Rosebank detail page loaded from the API.
+- The first attempted seed transaction used an invalid assumed room-type label and was rolled back. The actual PostgreSQL enum values were queried read-only, then the seed was retried successfully with valid labels; no rows from the failed transaction persisted.
+
+Sample listing images:
+- Source: Unsplash images served from images.unsplash.com; see https://unsplash.com/license.
+- Four image URLs were verified to return HTTP 200 and image/jpeg before being attached to the four fictional demo listings.
+- Inserted one listing_photos reference per sample listing. No image binaries were stored in the repository or database.
+- Added SQLAlchemy photo mapping and eager loading, exposed photos on the listing response, and updated listing cards/details to display returned images.
+- Validation: read-only Neon query confirmed one persisted photo reference for each of the four demo listings; the browser displayed the sample images on listing cards and on a listing details page; npm run build and git diff --check passed.
