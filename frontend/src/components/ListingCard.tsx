@@ -1,23 +1,6 @@
-export type Listing = {
-  listing_id: number;
-  area_id: number;
-  title: string;
-  description: string;
-  room_type: string;
-  monthly_rent: string | number;
-  deposit_amount: string | number;
-  address: string;
-  date_available: string;
-  status: string;
-  created_at: string;
-  photos: ListingPhoto[];
-};
+import type { Listing } from "../types/listing";
 
-export type ListingPhoto = {
-  photo_id: number;
-  url: string;
-  uploaded_at: string;
-};
+export type { Listing, ListingPhoto } from "../types/listing";
 
 type ListingCardProps = {
   listing: Listing;

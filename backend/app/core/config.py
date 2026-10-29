@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     database_url: str
     jwt_secret_key: SecretStr | None = None
     access_token_expire_minutes: int = Field(default=30, gt=0)
+    cloudinary_cloud_name: str | None = None
+    cloudinary_api_key: str | None = None
+    cloudinary_api_secret: SecretStr | None = None
 
     model_config = SettingsConfigDict(
         env_file=BACKEND_DIR / ".env",
