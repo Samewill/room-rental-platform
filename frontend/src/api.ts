@@ -2,6 +2,7 @@ import type {
   Area,
   Listing,
   ListingCreateRequest,
+  ListingModerationRecord,
   ListingUpdateRequest,
 } from "./types/listing";
 
@@ -27,6 +28,52 @@ export interface UserProfile {
   business_name: string | null;
   created_at: string;
   roles: string[];
+}
+
+export type ReportTarget = "listing" | "landlord" | "user";
+export type ReportReason =
+  | "scam"
+  | "fake_listing"
+  | "inaccurate_info"
+  | "abusive"
+  | "other";
+export type ReportStatus =
+  | "open"
+  | "under_review"
+  | "resolved"
+  | "dismissed";
+
+export interface ReportCreateRequest {
+  target: ReportTarget;
+  listing_id?: number;
+  target_user_id?: number;
+  reason: ReportReason;
+  details: string;
+}
+
+export interface ReportResolutionRequest {
+  note?: string;
+}
+
+export interface ReportResponse {
+  report_id: number;
+  listing_id: number | null;
+  target_user_id: number | null;
+  tenant_id: number;
+  admin_id: number | null;
+  reason: ReportReason;
+  status: ReportStatus;
+  details: string | null;
+  created_at: string;
+}
+
+export interface ReportHistoryRecord {
+  history_id: number;
+  report_id: number;
+  actor_user_id: number;
+  action: "submitted" | "assigned" | "resolved" | "dismissed";
+  note: string | null;
+  created_at: string;
 }
 
 interface TokenResponse {
@@ -197,4 +244,185 @@ export function uploadListingPhoto(
     },
     body,
   });
+}
+
+export function getPendingListings(accessToken: string): Promise<Listing[]> {
+  return requestJson<Listing[]>("/api/v1/admin/listings/pending", {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+}
+
+export function getPublishedListings(accessToken: string): Promise<Listing[]> {
+  return requestJson<Listing[]>("/api/v1/admin/listings/published", {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+}
+
+export function getListingModerationHistory(
+  accessToken: string,
+  listingId: number,
+): Promise<ListingModerationRecord[]> {
+  return requestJson<ListingModerationRecord[]>(
+    `/api/v1/admin/listings/${listingId}/moderation-history`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
+  );
+}
+
+export function approveListing(
+  accessToken: string,
+  listingId: number,
+  reason?: string,
+): Promise<Listing> {
+  return requestJson<Listing>(
+    `/api/v1/admin/listings/${listingId}/approve`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ reason }),
+    },
+  );
+}
+
+export function rejectListing(
+  accessToken: string,
+  listingId: number,
+  reason: string,
+): Promise<Listing> {
+  return requestJson<Listing>(
+    `/api/v1/admin/listings/${listingId}/reject`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ reason }),
+    },
+  );
+}
+
+export function hideListing(
+  accessToken: string,
+  listingId: number,
+  reason: string,
+): Promise<Listing> {
+  return requestJson<Listing>(
+    `/api/v1/admin/listings/${listingId}/hide`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ reason }),
+    },
+  );
+}
+
+export function submitReport(
+  accessToken: string,
+  payload: ReportCreateRequest,
+): Promise<ReportResponse> {
+  return requestJson<ReportResponse>("/api/v1/reports", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function getMyReports(
+  accessToken: string,
+): Promise<ReportResponse[]> {
+  return requestJson<ReportResponse[]>("/api/v1/users/me/reports", {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+}
+
+export function getAdminReports(
+  accessToken: string,
+  statusFilter?: ReportStatus,
+): Promise<ReportResponse[]> {
+  const query = statusFilter
+    ? `?${new URLSearchParams({ status: statusFilter })}`
+    : "";
+  return requestJson<ReportResponse[]>(`/api/v1/admin/reports${query}`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+}
+
+export function getReportHistory(
+  accessToken: string,
+  reportId: number,
+): Promise<ReportHistoryRecord[]> {
+  return requestJson<ReportHistoryRecord[]>(
+    `/api/v1/admin/reports/${reportId}/history`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
+  );
+}
+
+export function assignReportToSelf(
+  accessToken: string,
+  reportId: number,
+): Promise<ReportResponse> {
+  return requestJson<ReportResponse>(
+    `/api/v1/admin/reports/${reportId}/assign`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
+  );
+}
+
+export function resolveReport(
+  accessToken: string,
+  reportId: number,
+  payload: ReportResolutionRequest = {},
+): Promise<ReportResponse> {
+  return requestJson<ReportResponse>(
+    `/api/v1/admin/reports/${reportId}/resolve`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export function dismissReport(
+  accessToken: string,
+  reportId: number,
+  payload: ReportResolutionRequest = {},
+): Promise<ReportResponse> {
+  return requestJson<ReportResponse>(
+    `/api/v1/admin/reports/${reportId}/dismiss`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(payload),
+    },
+  );
 }

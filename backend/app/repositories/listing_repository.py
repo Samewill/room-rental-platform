@@ -1,20 +1,10 @@
 from collections.abc import Sequence
 
-from sqlalchemy import select
-from sqlalchemy import BigInteger, Column, DateTime, MetaData, String, Table, func
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.listing import Listing, ListingPhoto
-
-
-_listing_moderation = Table(
-    "listing_moderation",
-    MetaData(),
-    Column("moderation_id", BigInteger),
-    Column("listing_id", BigInteger),
-    Column("decision", String(8)),
-    Column("decided_at", DateTime),
-)
+from app.models.listing_moderation import ListingModeration
 
 
 class ListingRepository:
@@ -58,6 +48,53 @@ class ListingRepository:
     def get_by_id(self, listing_id: int) -> Listing | None:
         return self._db.get(Listing, listing_id)
 
+    def list_pending_listings(self) -> list[Listing]:
+        statement = (
+            select(Listing)
+            .where(Listing.status == "pending")
+            .order_by(Listing.created_at, Listing.listing_id)
+        )
+        return list(self._db.scalars(statement).all())
+
+    def list_active_listings(self) -> list[Listing]:
+        statement = (
+            select(Listing)
+            .where(Listing.status == "active")
+            .order_by(Listing.created_at.desc(), Listing.listing_id.desc())
+        )
+        return list(self._db.scalars(statement).all())
+
+    def list_moderation_history(
+        self,
+        listing_id: int,
+    ) -> list[ListingModeration]:
+        statement = (
+            select(ListingModeration)
+            .where(ListingModeration.listing_id == listing_id)
+            .order_by(
+                ListingModeration.decided_at.desc(),
+                ListingModeration.moderation_id.desc(),
+            )
+        )
+        return list(self._db.scalars(statement).all())
+
+    def add_moderation_decision(
+        self,
+        listing_id: int,
+        admin_id: int,
+        decision: str,
+        reason: str | None,
+    ) -> ListingModeration:
+        moderation = ListingModeration(
+            listing_id=listing_id,
+            admin_id=admin_id,
+            decision=decision,
+            reason=reason,
+        )
+        self._db.add(moderation)
+        self._db.flush()
+        return moderation
+
     def get_latest_moderation_decisions(
         self,
         listing_ids: Sequence[int],
@@ -67,19 +104,19 @@ class ListingRepository:
 
         ranked_decisions = (
             select(
-                _listing_moderation.c.listing_id,
-                _listing_moderation.c.decision,
+                ListingModeration.listing_id,
+                ListingModeration.decision,
                 func.row_number()
                 .over(
-                    partition_by=_listing_moderation.c.listing_id,
+                    partition_by=ListingModeration.listing_id,
                     order_by=(
-                        _listing_moderation.c.decided_at.desc(),
-                        _listing_moderation.c.moderation_id.desc(),
+                        ListingModeration.decided_at.desc(),
+                        ListingModeration.moderation_id.desc(),
                     ),
                 )
                 .label("decision_rank"),
             )
-            .where(_listing_moderation.c.listing_id.in_(listing_ids))
+            .where(ListingModeration.listing_id.in_(listing_ids))
             .subquery()
         )
         statement = select(

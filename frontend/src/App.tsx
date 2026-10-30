@@ -8,9 +8,12 @@ import {
   type UserProfile,
 } from "./api";
 import DashboardPage, { type DashboardRole } from "./pages/DashboardPage";
+import AdminReportsPage from "./pages/AdminReportsPage";
+import AdminModerationDashboardPage from "./pages/AdminModerationDashboardPage";
 import LandlordDashboardPage from "./pages/LandlordDashboardPage";
 import ListingDetailsPage from "./pages/ListingDetailsPage";
 import ListingsPage from "./pages/ListingsPage";
+import TenantReportsPage from "./pages/TenantReportsPage";
 import "./App.css";
 
 type AuthMode = "login" | "register";
@@ -141,8 +144,58 @@ function App() {
   if (listingMatch !== null) {
     const listingId = Number(listingMatch[1]);
     if (Number.isSafeInteger(listingId) && listingId > 0) {
-      return <ListingDetailsPage listingId={listingId} />;
+      return (
+        <ListingDetailsPage
+          listingId={listingId}
+          onReportListing={
+            profile !== null &&
+            accessToken !== null &&
+            profile.roles.includes("tenant")
+              ? (id) => navigate(`/tenant/reports/${id}`)
+              : undefined
+          }
+        />
+      );
     }
+  }
+
+  const tenantReportMatch = pathname.match(
+    /^\/tenant\/reports(?:\/(\d+))?\/?$/,
+  );
+  if (
+    tenantReportMatch !== null &&
+    profile !== null &&
+    accessToken !== null &&
+    profile.roles.includes("tenant")
+  ) {
+    return (
+      <TenantReportsPage
+        accessToken={accessToken}
+        initialListingId={
+          tenantReportMatch[1] === undefined
+            ? undefined
+            : Number(tenantReportMatch[1])
+        }
+        onBackToDashboard={() => navigate("/tenant")}
+        profile={profile}
+      />
+    );
+  }
+
+  if (
+    pathname === "/admin/reports" &&
+    profile !== null &&
+    accessToken !== null &&
+    profile.roles.includes("admin")
+  ) {
+    return (
+      <AdminReportsPage
+        accessToken={accessToken}
+        onBackToDashboard={() => navigate("/admin")}
+        onSignOut={handleSignOut}
+        profile={profile}
+      />
+    );
   }
 
   if (pathname === "/") {
@@ -166,8 +219,20 @@ function App() {
         );
       }
 
+      if (dashboardRole === "admin") {
+        return (
+          <AdminModerationDashboardPage
+            accessToken={accessToken}
+            onOpenReports={() => navigate("/admin/reports")}
+            onSignOut={handleSignOut}
+            profile={profile}
+          />
+        );
+      }
+
       return (
         <DashboardPage
+          onOpenReports={() => navigate("/tenant/reports")}
           onSignOut={handleSignOut}
           profile={profile}
           role={dashboardRole}

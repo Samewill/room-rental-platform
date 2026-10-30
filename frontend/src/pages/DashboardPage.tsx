@@ -6,6 +6,7 @@ type DashboardPageProps = {
   profile: UserProfile;
   role: DashboardRole;
   onSignOut: () => void;
+  onOpenReports: () => void;
 };
 
 const dashboardContent: Record<
@@ -36,6 +37,7 @@ export default function DashboardPage({
   profile,
   role,
   onSignOut,
+  onOpenReports,
 }: DashboardPageProps) {
   const content = dashboardContent[role];
 
@@ -62,6 +64,15 @@ export default function DashboardPage({
         <p className="dashboard-note">{content.nextStep}</p>
 
         <div className="dashboard-actions">
+          {role === "tenant" && (
+            <button
+              className="secondary-button"
+              onClick={onOpenReports}
+              type="button"
+            >
+              Report an issue / view my reports
+            </button>
+          )}
           <a className="primary-button dashboard-link" href="/">
             Browse rooms
           </a>

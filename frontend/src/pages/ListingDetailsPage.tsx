@@ -4,6 +4,7 @@ import type { Listing } from "../components/ListingCard";
 
 type ListingDetailsPageProps = {
   listingId: number;
+  onReportListing?: (listingId: number) => void;
 };
 
 function isListing(value: unknown): value is Listing {
@@ -63,6 +64,7 @@ function formatDate(value: string): string {
 
 export default function ListingDetailsPage({
   listingId,
+  onReportListing,
 }: ListingDetailsPageProps) {
   const [listing, setListing] = useState<Listing | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -196,6 +198,15 @@ export default function ListingDetailsPage({
             <h1 style={{ fontSize: 32, margin: "0 0 16px" }}>
               {listing.title}
             </h1>
+            {onReportListing !== undefined && (
+              <button
+                className="secondary-button"
+                onClick={() => onReportListing(listing.listing_id)}
+                type="button"
+              >
+                Report this listing
+              </button>
+            )}
             <p style={{ color: "#596579", lineHeight: 1.7 }}>
               {listing.description}
             </p>

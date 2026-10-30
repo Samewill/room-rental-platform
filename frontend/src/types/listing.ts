@@ -4,6 +4,15 @@ export type ListingPhoto = {
   uploaded_at: string;
 };
 
+export type ListingModerationRecord = {
+  moderation_id: number;
+  listing_id: number;
+  admin_id: number;
+  decision: "approved" | "rejected" | "flagged";
+  reason: string | null;
+  decided_at: string;
+};
+
 export type Listing = {
   listing_id: number;
   area_id: number;
