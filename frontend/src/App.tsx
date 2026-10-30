@@ -8,6 +8,7 @@ import {
   registerAccount,
   type UserProfile,
 } from "./api";
+import AppLink from "./components/AppLink";
 import DashboardPage, { type DashboardRole } from "./pages/DashboardPage";
 import LandlordDashboardPage from "./pages/LandlordDashboardPage";
 import ListingDetailsPage from "./pages/ListingDetailsPage";
@@ -60,6 +61,11 @@ function App() {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [sessionRestoreError, setSessionRestoreError] = useState<string | null>(
+    null,
+  );
+  const [sessionNotice, setSessionNotice] = useState<string | null>(null);
+  const [restoreAttempt, setRestoreAttempt] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -67,12 +73,16 @@ function App() {
     let isCurrent = true;
 
     async function restoreSession() {
+      setIsAuthReady(false);
+      setSessionRestoreError(null);
+      setSessionNotice(null);
+
       let savedToken: string | null;
       try {
         savedToken = window.sessionStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
       } catch {
         if (isCurrent) {
-          setErrorMessage(
+          setSessionRestoreError(
             "Browser session storage is unavailable. Enable it and sign in again.",
           );
           setIsAuthReady(true);
@@ -102,17 +112,17 @@ function App() {
         if (error instanceof ApiError && error.statusCode === 401) {
           try {
             window.sessionStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
-            setErrorMessage("Your session expired. Please sign in again.");
+            setSessionNotice("Your session expired. Please sign in again.");
           } catch {
-            setErrorMessage(
+            setSessionRestoreError(
               "Your session expired, but browser storage could not be cleared. Please close this tab after signing in again.",
             );
           }
         } else {
-          setErrorMessage(
+          setSessionRestoreError(
             error instanceof Error
-              ? error.message
-              : "We could not restore your session. Please sign in again.",
+              ? `We couldn't verify your saved session: ${error.message}`
+              : "We couldn't verify your saved session. Check your connection and try again.",
           );
         }
       } finally {
@@ -126,7 +136,7 @@ function App() {
     return () => {
       isCurrent = false;
     };
-  }, []);
+  }, [restoreAttempt]);
 
   useEffect(() => {
     function syncPathname() {
@@ -139,8 +149,15 @@ function App() {
   }, []);
 
   function navigate(path: string) {
-    window.history.pushState(null, "", path);
-    setPathname(path);
+    const destination = new URL(path, window.location.href);
+    if (destination.origin !== window.location.origin) {
+      window.location.assign(destination.href);
+      return;
+    }
+    window.history.pushState(null, "", destination.href);
+    setPathname(destination.pathname);
+    setMode(destination.pathname === "/register" ? "register" : "login");
+    window.scrollTo({ top: 0 });
   }
 
   function updateField(field: keyof FormFields, value: string) {
@@ -150,6 +167,8 @@ function App() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setErrorMessage(null);
+    setSessionRestoreError(null);
+    setSessionNotice(null);
     setNotice(null);
     setIsSubmitting(true);
 
@@ -189,6 +208,8 @@ function App() {
       setAccessToken(tokenResponse.access_token);
       setProfile(currentProfile);
       setFields(emptyForm);
+      setSessionRestoreError(null);
+      setSessionNotice(null);
       navigate(`/${dashboardRole}`);
     } catch (error: unknown) {
       setErrorMessage(
@@ -214,20 +235,51 @@ function App() {
     setProfile(null);
     setFields(emptyForm);
     setErrorMessage(storageError);
+    setSessionRestoreError(null);
+    setSessionNotice(null);
     setNotice(null);
     navigate(storageError === null ? "/" : "/login");
+  }
+
+  function retrySessionRestore() {
+    setSessionRestoreError(null);
+    setSessionNotice(null);
+    setRestoreAttempt((attempt) => attempt + 1);
   }
 
   const listingMatch = pathname.match(/^\/listings\/(\d+)\/?$/);
   if (listingMatch !== null) {
     const listingId = Number(listingMatch[1]);
     if (Number.isSafeInteger(listingId) && listingId > 0) {
-      return <ListingDetailsPage listingId={listingId} />;
+      return (
+        <ListingDetailsPage
+          accessToken={
+            profile?.roles.includes("tenant") === true ? accessToken : null
+          }
+          isAuthReady={isAuthReady}
+          isAuthenticated={profile !== null}
+          listingId={listingId}
+          onNavigate={navigate}
+          onRetrySessionRestore={retrySessionRestore}
+          sessionNotice={sessionNotice}
+          sessionRestoreError={sessionRestoreError}
+        />
+      );
     }
   }
 
   if (pathname === "/") {
-    return <ListingsPage />;
+    return (
+      <ListingsPage
+        isAuthReady={isAuthReady}
+        onNavigate={navigate}
+        onRetrySessionRestore={retrySessionRestore}
+        onSignOut={handleSignOut}
+        profile={profile}
+        sessionNotice={sessionNotice}
+        sessionRestoreError={sessionRestoreError}
+      />
+    );
   }
 
   if (!isAuthReady) {
@@ -249,6 +301,7 @@ function App() {
         return (
           <LandlordDashboardPage
             accessToken={accessToken}
+            onNavigate={navigate}
             onSignOut={handleSignOut}
             profile={profile}
           />
@@ -257,6 +310,8 @@ function App() {
 
       return (
         <DashboardPage
+          accessToken={accessToken}
+          onNavigate={navigate}
           onSignOut={handleSignOut}
           profile={profile}
           role={dashboardRole}
@@ -288,6 +343,23 @@ function App() {
         {errorMessage !== null && (
           <p className="message message-error" role="alert">
             {errorMessage}
+          </p>
+        )}
+        {sessionRestoreError !== null && (
+          <div className="message message-error" role="alert">
+            <p>{sessionRestoreError}</p>
+            <button
+              className="text-button"
+              onClick={retrySessionRestore}
+              type="button"
+            >
+              Retry session check
+            </button>
+          </div>
+        )}
+        {sessionNotice !== null && (
+          <p className="message message-error" role="status">
+            {sessionNotice}
           </p>
         )}
 
@@ -415,9 +487,9 @@ function App() {
           </button>
         </p>
         <p className="switch-mode">
-          <a className="text-button" href="/">
+          <AppLink className="text-button" href="/" onNavigate={navigate}>
             Browse rooms
-          </a>
+          </AppLink>
         </p>
       </section>
     </main>

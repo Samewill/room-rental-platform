@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { buildApiUrl } from "../api";
+import type { UserProfile } from "../api";
+import AppLink from "../components/AppLink";
 import ListingGrid from "../components/ListingGrid";
 import SearchFilters, {
   type ListingFilters,
@@ -61,7 +63,35 @@ const emptyFilters: ListingFilters = {
   maximumRent: "",
 };
 
-export default function ListingsPage() {
+type ListingsPageProps = {
+  isAuthReady: boolean;
+  onNavigate: (path: string) => void;
+  onRetrySessionRestore: () => void;
+  onSignOut: () => void;
+  profile: UserProfile | null;
+  sessionNotice: string | null;
+  sessionRestoreError: string | null;
+};
+
+function getDashboardPath(profile: UserProfile): string {
+  if (profile.roles.includes("admin")) {
+    return "/admin";
+  }
+  if (profile.roles.includes("landlord")) {
+    return "/landlord";
+  }
+  return "/tenant";
+}
+
+export default function ListingsPage({
+  isAuthReady,
+  onNavigate,
+  onRetrySessionRestore,
+  onSignOut,
+  profile,
+  sessionNotice,
+  sessionRestoreError,
+}: ListingsPageProps) {
   const [listings, setListings] = useState<Listing[]>([]);
   const [areas, setAreas] = useState<Area[]>([]);
   const [filters, setFilters] = useState<ListingFilters>(emptyFilters);
@@ -208,39 +238,139 @@ export default function ListingsPage() {
               Browse rooms currently available for rent.
             </p>
           </div>
-          <nav aria-label="Account" style={{ display: "flex", gap: 10 }}>
-            <a
-              href="/login"
-              style={{
-                background: "white",
-                border: "1px solid #dfe3e7",
-                borderRadius: 8,
-                color: "#244b35",
-                fontWeight: 600,
-                padding: "10px 16px",
-                textDecoration: "none",
-                whiteSpace: "nowrap",
-              }}
-            >
-              Sign in
-            </a>
-            <a
-              href="/register"
-              style={{
-                background: "#244b35",
-                border: "1px solid #244b35",
-                borderRadius: 8,
-                color: "white",
-                fontWeight: 600,
-                padding: "10px 16px",
-                textDecoration: "none",
-                whiteSpace: "nowrap",
-              }}
-            >
-              Create account
-            </a>
+          <nav
+            aria-label="Account"
+            style={{
+              alignItems: "center",
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 10,
+              justifyContent: "flex-end",
+            }}
+          >
+            {!isAuthReady ? (
+              <span role="status">Checking your session…</span>
+            ) : sessionRestoreError !== null ? (
+              <>
+                <span role="alert">Your saved session could not be verified.</span>
+                <button
+                  onClick={onRetrySessionRestore}
+                  style={{
+                    background: "white",
+                    border: "1px solid #dfe3e7",
+                    borderRadius: 8,
+                    color: "#244b35",
+                    cursor: "pointer",
+                    font: "inherit",
+                    fontWeight: 600,
+                    padding: "10px 16px",
+                  }}
+                  type="button"
+                >
+                  Retry
+                </button>
+                <AppLink
+                  href="/login"
+                  onNavigate={onNavigate}
+                  style={{ color: "#244b35", fontWeight: 600 }}
+                >
+                  Sign in
+                </AppLink>
+              </>
+            ) : profile !== null ? (
+              <>
+                <AppLink
+                  href={getDashboardPath(profile)}
+                  onNavigate={onNavigate}
+                  style={{
+                    background: "#244b35",
+                    border: "1px solid #244b35",
+                    borderRadius: 8,
+                    color: "white",
+                    fontWeight: 600,
+                    padding: "10px 16px",
+                    textDecoration: "none",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Your dashboard
+                </AppLink>
+                <button
+                  onClick={onSignOut}
+                  style={{
+                    background: "white",
+                    border: "1px solid #dfe3e7",
+                    borderRadius: 8,
+                    color: "#244b35",
+                    cursor: "pointer",
+                    font: "inherit",
+                    fontWeight: 600,
+                    padding: "10px 16px",
+                  }}
+                  type="button"
+                >
+                  Sign out
+                </button>
+              </>
+            ) : (
+              <>
+                <AppLink
+                  href="/login"
+                  onNavigate={onNavigate}
+                  style={{
+                    background: "white",
+                    border: "1px solid #dfe3e7",
+                    borderRadius: 8,
+                    color: "#244b35",
+                    fontWeight: 600,
+                    padding: "10px 16px",
+                    textDecoration: "none",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Sign in
+                </AppLink>
+                <AppLink
+                  href="/register"
+                  onNavigate={onNavigate}
+                  style={{
+                    background: "#244b35",
+                    border: "1px solid #244b35",
+                    borderRadius: 8,
+                    color: "white",
+                    fontWeight: 600,
+                    padding: "10px 16px",
+                    textDecoration: "none",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Create account
+                </AppLink>
+              </>
+            )}
           </nav>
         </header>
+
+        {sessionRestoreError !== null && (
+          <p
+            role="alert"
+            style={{
+              background: "#fff1f0",
+              border: "1px solid #e6aaa5",
+              borderRadius: 12,
+              color: "#7c241d",
+              margin: "0 0 24px",
+              padding: 16,
+            }}
+          >
+            {sessionRestoreError}
+          </p>
+        )}
+        {sessionNotice !== null && (
+          <p role="status" style={{ margin: "0 0 24px" }}>
+            {sessionNotice}
+          </p>
+        )}
 
         {isLoading && (
           <p role="status" style={{ color: "#596579" }}>
@@ -322,7 +452,10 @@ export default function ListingsPage() {
             <p aria-live="polite" style={{ color: "#596579" }}>
               Showing {filteredListings.length} of {listings.length} rooms
             </p>
-            <ListingGrid listings={filteredListings} />
+            <ListingGrid
+              listings={filteredListings}
+              onNavigate={onNavigate}
+            />
           </>
         )}
       </section>

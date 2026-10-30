@@ -1,9 +1,18 @@
 import { useEffect, useState } from "react";
 
+import { ApiError, createContactRequest } from "../api";
+import AppLink from "../components/AppLink";
 import type { Listing } from "../components/ListingCard";
 
 type ListingDetailsPageProps = {
+  accessToken: string | null;
+  isAuthReady: boolean;
+  isAuthenticated: boolean;
   listingId: number;
+  onNavigate: (path: string) => void;
+  onRetrySessionRestore: () => void;
+  sessionNotice: string | null;
+  sessionRestoreError: string | null;
 };
 
 function isListing(value: unknown): value is Listing {
@@ -62,11 +71,50 @@ function formatDate(value: string): string {
 }
 
 export default function ListingDetailsPage({
+  accessToken,
+  isAuthReady,
+  isAuthenticated,
   listingId,
+  onNavigate,
+  onRetrySessionRestore,
+  sessionNotice,
+  sessionRestoreError,
 }: ListingDetailsPageProps) {
   const [listing, setListing] = useState<Listing | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [contactRequestError, setContactRequestError] = useState<string | null>(
+    null,
+  );
+  const [contactRequestNotice, setContactRequestNotice] = useState<
+    string | null
+  >(null);
+  const [isSubmittingContactRequest, setIsSubmittingContactRequest] =
+    useState(false);
+
+  async function handleContactRequest(): Promise<void> {
+    if (accessToken === null) {
+      return;
+    }
+
+    setContactRequestError(null);
+    setContactRequestNotice(null);
+    setIsSubmittingContactRequest(true);
+    try {
+      await createContactRequest(accessToken, listingId);
+      setContactRequestNotice("Your contact request was submitted.");
+    } catch (requestError: unknown) {
+      setContactRequestError(
+        requestError instanceof ApiError
+          ? requestError.message
+          : requestError instanceof Error
+            ? requestError.message
+            : "Your contact request could not be submitted.",
+      );
+    } finally {
+      setIsSubmittingContactRequest(false);
+    }
+  }
 
   useEffect(() => {
     const controller = new AbortController();
@@ -131,13 +179,31 @@ export default function ListingDetailsPage({
           padding: 28,
         }}
       >
-        <a
+        <AppLink
           href="/"
+          onNavigate={onNavigate}
           style={{ color: "#244b35", fontWeight: 600, textDecoration: "none" }}
         >
           ← Back to rooms
-        </a>
+        </AppLink>
 
+        {sessionRestoreError !== null && (
+          <div role="alert" style={{ color: "#9b2820", marginTop: 16 }}>
+            <p>{sessionRestoreError}</p>
+            <button onClick={onRetrySessionRestore} type="button">
+              Retry session check
+            </button>
+            {" "}
+            <AppLink href="/login" onNavigate={onNavigate}>
+              Sign in
+            </AppLink>
+          </div>
+        )}
+        {sessionNotice !== null && (
+          <p role="status" style={{ marginTop: 16 }}>
+            {sessionNotice}
+          </p>
+        )}
         {isLoading && <p role="status">Loading room details…</p>}
 
         {!isLoading && error && (
@@ -234,6 +300,44 @@ export default function ListingDetailsPage({
                 </dd>
               </div>
             </dl>
+            {isAuthReady && (
+              <section
+                aria-label="Contact request"
+                style={{ marginTop: 28 }}
+              >
+                {accessToken !== null ? (
+                  <button
+                    className="primary-button"
+                    disabled={isSubmittingContactRequest}
+                    onClick={() => void handleContactRequest()}
+                    type="button"
+                  >
+                    {isSubmittingContactRequest
+                      ? "Submitting request…"
+                      : "Request to contact"}
+                  </button>
+                ) : isAuthenticated ? (
+                  <p role="status">
+                    Contact requests are available to tenant accounts.
+                  </p>
+                ) : (
+                  <p>
+                    <AppLink href="/login" onNavigate={onNavigate}>
+                      Sign in as a tenant
+                    </AppLink>{" "}
+                    to request contact.
+                  </p>
+                )}
+                {contactRequestError !== null && (
+                  <p role="alert" style={{ color: "#9b2820" }}>
+                    {contactRequestError}
+                  </p>
+                )}
+                {contactRequestNotice !== null && (
+                  <p role="status">{contactRequestNotice}</p>
+                )}
+              </section>
+            )}
           </>
         )}
       </article>

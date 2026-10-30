@@ -4,13 +4,17 @@ import type { FormEvent, ChangeEvent } from "react";
 import {
   createListing,
   getAreas,
+  getReceivedContactRequests,
   getMyListings,
+  respondToContactRequest,
   submitListing,
   updateListing,
   uploadListingPhoto,
   withdrawListing,
+  type ContactRequest,
   type UserProfile,
 } from "../api";
+import AppLink from "../components/AppLink";
 import type {
   Area,
   Listing,
@@ -20,6 +24,7 @@ import "./LandlordDashboardPage.css";
 
 type LandlordDashboardPageProps = {
   accessToken: string;
+  onNavigate: (path: string) => void;
   profile: UserProfile;
   onSignOut: () => void;
 };
@@ -81,12 +86,26 @@ function getStatusLabel(status: string): string {
   }
 }
 
+function formatRequestDate(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "Date unavailable";
+  }
+
+  return new Intl.DateTimeFormat("en-ZA", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
+}
+
 export default function LandlordDashboardPage({
   accessToken,
+  onNavigate,
   profile,
   onSignOut,
 }: LandlordDashboardPageProps) {
   const [listings, setListings] = useState<Listing[]>([]);
+  const [contactRequests, setContactRequests] = useState<ContactRequest[]>([]);
   const [areas, setAreas] = useState<Area[]>([]);
   const [form, setForm] = useState<ListingFormFields>(emptyForm);
   const [editingListingId, setEditingListingId] = useState<number | null>(null);
@@ -94,6 +113,17 @@ export default function LandlordDashboardPage({
   const [notice, setNotice] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoadingContactRequests, setIsLoadingContactRequests] =
+    useState(true);
+  const [contactRequestError, setContactRequestError] = useState<
+    string | null
+  >(null);
+  const [contactRequestNotice, setContactRequestNotice] = useState<
+    string | null
+  >(null);
+  const [updatingContactRequestId, setUpdatingContactRequestId] = useState<
+    number | null
+  >(null);
 
   async function refreshListings(): Promise<void> {
     setListings(await getMyListings(accessToken));
@@ -128,6 +158,77 @@ export default function LandlordDashboardPage({
       active = false;
     };
   }, [accessToken]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadContactRequests(): Promise<void> {
+      try {
+        const requests = await getReceivedContactRequests(accessToken);
+        if (active) {
+          setContactRequests(requests);
+          setContactRequestError(null);
+        }
+      } catch (error: unknown) {
+        if (active) {
+          setContactRequestError(getErrorMessage(error));
+        }
+      } finally {
+        if (active) {
+          setIsLoadingContactRequests(false);
+        }
+      }
+    }
+
+    void loadContactRequests();
+    return () => {
+      active = false;
+    };
+  }, [accessToken]);
+
+  async function refreshContactRequests(): Promise<void> {
+    setIsLoadingContactRequests(true);
+    setContactRequestError(null);
+    try {
+      setContactRequests(await getReceivedContactRequests(accessToken));
+    } catch (error: unknown) {
+      setContactRequestError(getErrorMessage(error));
+    } finally {
+      setIsLoadingContactRequests(false);
+    }
+  }
+
+  async function handleContactRequestDecision(
+    requestId: number,
+    decision: "approved" | "rejected",
+  ): Promise<void> {
+    setContactRequestError(null);
+    setContactRequestNotice(null);
+    setUpdatingContactRequestId(requestId);
+    try {
+      const updatedRequest = await respondToContactRequest(
+        accessToken,
+        requestId,
+        decision,
+      );
+      setContactRequests((requests) =>
+        requests.map((request) =>
+          request.request_id === updatedRequest.request_id
+            ? updatedRequest
+            : request,
+        ),
+      );
+      setContactRequestNotice(
+        decision === "approved"
+          ? "Contact request approved."
+          : "Contact request rejected.",
+      );
+    } catch (error: unknown) {
+      setContactRequestError(getErrorMessage(error));
+    } finally {
+      setUpdatingContactRequestId(null);
+    }
+  }
 
   function updateField(
     field: keyof ListingFormFields,
@@ -274,6 +375,102 @@ export default function LandlordDashboardPage({
             {notice}
           </p>
         )}
+
+        <section
+          className="landlord-panel"
+          aria-labelledby="contact-requests-heading"
+        >
+          <div className="landlord-listings-heading">
+            <h2 id="contact-requests-heading">Contact requests</h2>
+            <button
+              className="secondary-button"
+              disabled={isLoadingContactRequests}
+              onClick={() => void refreshContactRequests()}
+              type="button"
+            >
+              Refresh
+            </button>
+          </div>
+          {contactRequestError !== null && (
+            <p className="message message-error" role="alert">
+              {contactRequestError}
+            </p>
+          )}
+          {contactRequestNotice !== null && (
+            <p className="message message-success" role="status">
+              {contactRequestNotice}
+            </p>
+          )}
+          {isLoadingContactRequests && (
+            <p role="status">Loading contact requests...</p>
+          )}
+          {!isLoadingContactRequests &&
+            contactRequestError === null &&
+            contactRequests.length === 0 && (
+              <p className="landlord-empty-state">
+                You have not received any contact requests.
+              </p>
+            )}
+          {!isLoadingContactRequests &&
+            contactRequests.length > 0 && (
+              <ul className="landlord-list">
+                {contactRequests.map((contactRequest) => (
+                  <li
+                    className="landlord-contact-request"
+                    key={contactRequest.request_id}
+                  >
+                    <div className="landlord-listing-header">
+                      <div>
+                        <h3>Listing #{contactRequest.listing_id}</h3>
+                        <p>
+                          Requested{" "}
+                          {formatRequestDate(contactRequest.requested_at)}
+                        </p>
+                      </div>
+                      <span
+                        className={`listing-status status-${contactRequest.status}`}
+                      >
+                        {contactRequest.status}
+                      </span>
+                    </div>
+                    {contactRequest.status === "pending" && (
+                      <div className="landlord-listing-actions">
+                        <button
+                          className="secondary-button"
+                          disabled={updatingContactRequestId !== null}
+                          onClick={() =>
+                            void handleContactRequestDecision(
+                              contactRequest.request_id,
+                              "approved",
+                            )
+                          }
+                          type="button"
+                        >
+                          {updatingContactRequestId ===
+                          contactRequest.request_id
+                            ? "Updating..."
+                            : "Approve"}
+                        </button>
+                        <button
+                          className="secondary-button danger-button"
+                          disabled={updatingContactRequestId !== null}
+                          onClick={() =>
+                            void handleContactRequestDecision(
+                              contactRequest.request_id,
+                              "rejected",
+                            )
+                          }
+                          type="button"
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+        </section>
 
         <section
           className="landlord-panel"
@@ -530,7 +727,9 @@ export default function LandlordDashboardPage({
         </section>
 
         <footer className="landlord-footer">
-          <a href="/">Browse public rooms</a>
+          <AppLink href="/" onNavigate={onNavigate}>
+            Browse public rooms
+          </AppLink>
         </footer>
       </section>
     </main>

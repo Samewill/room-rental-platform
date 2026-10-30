@@ -29,6 +29,13 @@ export interface UserProfile {
   roles: string[];
 }
 
+export interface ContactRequest {
+  request_id: number;
+  listing_id: number;
+  status: "pending" | "approved" | "rejected" | "cancelled";
+  requested_at: string;
+}
+
 interface TokenResponse {
   access_token: string;
   token_type: "bearer";
@@ -130,6 +137,71 @@ export function getMyProfile(accessToken: string): Promise<UserProfile> {
     headers: {
       Authorization: `Bearer ${accessToken}`,
     },
+  });
+}
+
+export function createContactRequest(
+  accessToken: string,
+  listingId: number,
+): Promise<ContactRequest> {
+  return requestJson<ContactRequest>(
+    `/api/v1/listings/${listingId}/contact-requests`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
+  );
+}
+
+export function getMyContactRequests(
+  accessToken: string,
+): Promise<ContactRequest[]> {
+  return requestJson<ContactRequest[]>("/api/v1/users/me/contact-requests", {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+}
+
+export function getReceivedContactRequests(
+  accessToken: string,
+): Promise<ContactRequest[]> {
+  return requestJson<ContactRequest[]>(
+    "/api/v1/users/me/received-requests",
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
+  );
+}
+
+export function cancelContactRequest(
+  accessToken: string,
+  requestId: number,
+): Promise<ContactRequest> {
+  return requestJson<ContactRequest>(`/api/v1/contact-requests/${requestId}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ status: "cancelled" }),
+  });
+}
+
+export function respondToContactRequest(
+  accessToken: string,
+  requestId: number,
+  status: "approved" | "rejected",
+): Promise<ContactRequest> {
+  return requestJson<ContactRequest>(`/api/v1/contact-requests/${requestId}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ status }),
   });
 }
 
