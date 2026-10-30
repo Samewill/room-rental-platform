@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     cors_allowed_origins: str = (
         "http://127.0.0.1:5173,http://localhost:5173"
     )
+    cloudinary_cloud_name: str | None = None
+    cloudinary_api_key: str | None = None
+    cloudinary_api_secret: SecretStr | None = None
 
     model_config = SettingsConfigDict(
         env_file=BACKEND_DIR / ".env",

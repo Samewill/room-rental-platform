@@ -14,6 +14,7 @@ from sqlalchemy import (
     Text,
     func,
 )
+from sqlalchemy.dialects.postgresql import ENUM
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -39,7 +40,17 @@ class Listing(Base):
     )
     title: Mapped[str] = mapped_column(String(150), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
-    room_type: Mapped[str] = mapped_column(String(14), nullable=False)
+    room_type: Mapped[str] = mapped_column(
+        ENUM(
+            "single_room",
+            "shared_room",
+            "bachelor_flat",
+            "self_contained",
+            name="room_type_enum",
+            create_type=False,
+        ),
+        nullable=False,
+    )
     monthly_rent: Mapped[Decimal] = mapped_column(
         Numeric(10, 2),
         nullable=False,
@@ -50,7 +61,20 @@ class Listing(Base):
     )
     address: Mapped[str] = mapped_column(String(255), nullable=False)
     date_available: Mapped[date] = mapped_column(Date, nullable=False)
-    status: Mapped[str] = mapped_column(String(7), nullable=False)
+    status: Mapped[str] = mapped_column(
+        ENUM(
+            "pending",
+            "active",
+            "taken",
+            "expired",
+            "removed",
+            "draft",
+            "closed",
+            name="listing_status_enum",
+            create_type=False,
+        ),
+        nullable=False,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,

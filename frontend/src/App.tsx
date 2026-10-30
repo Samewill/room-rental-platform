@@ -9,6 +9,7 @@ import {
   type UserProfile,
 } from "./api";
 import DashboardPage, { type DashboardRole } from "./pages/DashboardPage";
+import LandlordDashboardPage from "./pages/LandlordDashboardPage";
 import ListingDetailsPage from "./pages/ListingDetailsPage";
 import ListingsPage from "./pages/ListingsPage";
 import "./App.css";
@@ -244,6 +245,16 @@ function App() {
   ) {
     const dashboardRole = getDashboardRole(profile.roles);
     if (pathname === `/${dashboardRole}`) {
+      if (dashboardRole === "landlord") {
+        return (
+          <LandlordDashboardPage
+            accessToken={accessToken}
+            onSignOut={handleSignOut}
+            profile={profile}
+          />
+        );
+      }
+
       return (
         <DashboardPage
           onSignOut={handleSignOut}

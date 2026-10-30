@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy import BigInteger, Column, DateTime, MetaData, String, Table, func
 from sqlalchemy.orm import Session
 
-from app.models.listing import Listing
+from app.models.listing import Listing, ListingPhoto
 
 
 _listing_moderation = Table(
@@ -20,6 +20,33 @@ _listing_moderation = Table(
 class ListingRepository:
     def __init__(self, db: Session) -> None:
         self._db = db
+
+    def list_for_landlord(self, landlord_id: int) -> list[Listing]:
+        statement = (
+            select(Listing)
+            .where(Listing.landlord_id == landlord_id)
+            .order_by(Listing.created_at.desc(), Listing.listing_id.desc())
+        )
+        return list(self._db.scalars(statement).all())
+
+    def get_owned(
+        self,
+        listing_id: int,
+        landlord_id: int,
+    ) -> Listing | None:
+        statement = select(Listing).where(
+            Listing.listing_id == listing_id,
+            Listing.landlord_id == landlord_id,
+        )
+        return self._db.scalar(statement)
+
+    def add(self, listing: Listing) -> Listing:
+        self._db.add(listing)
+        self._db.flush()
+        return listing
+
+    def add_photo(self, listing: Listing, url: str) -> None:
+        listing.photos.append(ListingPhoto(url=url))
 
     def list_all(self) -> list[Listing]:
         statement = select(Listing).order_by(
