@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 
 import {
+  ApiError,
   getMyProfile,
   login,
   registerAccount,
@@ -21,6 +22,8 @@ type FormFields = {
   password: string;
   businessName: string;
 };
+
+const AUTH_TOKEN_STORAGE_KEY = "room-rental-access-token";
 
 const emptyForm: FormFields = {
   fullName: "",
@@ -54,9 +57,75 @@ function App() {
   const [fields, setFields] = useState<FormFields>(emptyForm);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [isAuthReady, setIsAuthReady] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    let isCurrent = true;
+
+    async function restoreSession() {
+      let savedToken: string | null;
+      try {
+        savedToken = window.sessionStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
+      } catch {
+        if (isCurrent) {
+          setErrorMessage(
+            "Browser session storage is unavailable. Enable it and sign in again.",
+          );
+          setIsAuthReady(true);
+        }
+        return;
+      }
+
+      if (!savedToken) {
+        if (isCurrent) {
+          setIsAuthReady(true);
+        }
+        return;
+      }
+
+      try {
+        const restoredProfile = await getMyProfile(savedToken);
+        getDashboardRole(restoredProfile.roles);
+        if (isCurrent) {
+          setAccessToken(savedToken);
+          setProfile(restoredProfile);
+        }
+      } catch (error: unknown) {
+        if (!isCurrent) {
+          return;
+        }
+
+        if (error instanceof ApiError && error.statusCode === 401) {
+          try {
+            window.sessionStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+            setErrorMessage("Your session expired. Please sign in again.");
+          } catch {
+            setErrorMessage(
+              "Your session expired, but browser storage could not be cleared. Please close this tab after signing in again.",
+            );
+          }
+        } else {
+          setErrorMessage(
+            error instanceof Error
+              ? error.message
+              : "We could not restore your session. Please sign in again.",
+          );
+        }
+      } finally {
+        if (isCurrent) {
+          setIsAuthReady(true);
+        }
+      }
+    }
+
+    void restoreSession();
+    return () => {
+      isCurrent = false;
+    };
+  }, []);
 
   useEffect(() => {
     function syncPathname() {
@@ -112,6 +181,10 @@ function App() {
       });
       const currentProfile = await getMyProfile(tokenResponse.access_token);
       const dashboardRole = getDashboardRole(currentProfile.roles);
+      window.sessionStorage.setItem(
+        AUTH_TOKEN_STORAGE_KEY,
+        tokenResponse.access_token,
+      );
       setAccessToken(tokenResponse.access_token);
       setProfile(currentProfile);
       setFields(emptyForm);
@@ -128,12 +201,20 @@ function App() {
   }
 
   function handleSignOut() {
+    let storageError: string | null = null;
+    try {
+      window.sessionStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+    } catch {
+      storageError =
+        "The saved session could not be cleared from this tab. Close this tab to discard it.";
+    }
+
     setAccessToken(null);
     setProfile(null);
     setFields(emptyForm);
-    setErrorMessage(null);
+    setErrorMessage(storageError);
     setNotice(null);
-    navigate("/");
+    navigate(storageError === null ? "/" : "/login");
   }
 
   const listingMatch = pathname.match(/^\/listings\/(\d+)\/?$/);
@@ -146,6 +227,14 @@ function App() {
 
   if (pathname === "/") {
     return <ListingsPage />;
+  }
+
+  if (!isAuthReady) {
+    return (
+      <main className="page-shell">
+        <p role="status">Checking your session…</p>
+      </main>
+    );
   }
 
   if (

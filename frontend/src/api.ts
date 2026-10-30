@@ -30,6 +30,20 @@ interface TokenResponse {
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "");
 
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly statusCode: number,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
+export function buildApiUrl(path: string): string {
+  return `${apiBaseUrl}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
 async function requestJson<T>(
   path: string,
   init: RequestInit = {},
@@ -37,7 +51,7 @@ async function requestJson<T>(
   const headers = new Headers(init.headers);
   headers.set("Content-Type", "application/json");
 
-  const response = await fetch(`${apiBaseUrl}${path}`, {
+  const response = await fetch(buildApiUrl(path), {
     ...init,
     headers,
   });
@@ -47,7 +61,7 @@ async function requestJson<T>(
     : await response.text();
 
   if (!response.ok) {
-    throw new Error(getErrorMessage(body, response.status));
+    throw new ApiError(getErrorMessage(body, response.status), response.status);
   }
 
   return body as T;

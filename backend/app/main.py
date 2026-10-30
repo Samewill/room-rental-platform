@@ -1,11 +1,13 @@
 import logging
 
 from fastapi import Depends, FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.api.v1.router import api_router
+from app.core.config import get_settings
 from app.db.session import get_db
 
 
@@ -13,6 +15,18 @@ logger = logging.getLogger(__name__)
 
 
 app = FastAPI(title="Room Rental Platform API")
+cors_allowed_origins = [
+    origin.strip()
+    for origin in get_settings().cors_allowed_origins.split(",")
+    if origin.strip()
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=cors_allowed_origins,
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
+)
 app.include_router(api_router)
 
 

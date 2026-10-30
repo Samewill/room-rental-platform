@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { buildApiUrl } from "../api";
 import ListingGrid from "../components/ListingGrid";
 import SearchFilters, {
   type ListingFilters,
@@ -74,8 +75,8 @@ export default function ListingsPage() {
 
     try {
       const [listingsResponse, areasResponse] = await Promise.all([
-        fetch("/api/v1/listings", { signal }),
-        fetch("/api/v1/areas", { signal }),
+        fetch(buildApiUrl("/api/v1/listings"), { signal }),
+        fetch(buildApiUrl("/api/v1/areas"), { signal }),
       ]);
       if (!listingsResponse.ok) {
         throw new Error(
