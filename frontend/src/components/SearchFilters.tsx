@@ -1,13 +1,17 @@
 import type { ChangeEvent } from "react";
 
+import type { Amenity } from "../types/listing";
+
 export type ListingFilters = {
   location: string;
   roomType: string;
   minimumRent: string;
   maximumRent: string;
+  amenities: string[];
 };
 
 type SearchFiltersProps = {
+  amenities: Amenity[];
   filters: ListingFilters;
   onChange: (filters: ListingFilters) => void;
 };
@@ -25,6 +29,7 @@ const fieldStyle = {
 };
 
 export default function SearchFilters({
+  amenities,
   filters,
   onChange,
 }: SearchFiltersProps) {
@@ -43,6 +48,16 @@ export default function SearchFilters({
     if (value === "" || Number(value) >= 0) {
       updateField(field, value);
     }
+  }
+
+  function toggleAmenity(name: string, checked: boolean): void {
+    const selected = new Set(filters.amenities);
+    if (checked) {
+      selected.add(name);
+    } else {
+      selected.delete(name);
+    }
+    onChange({ ...filters, amenities: Array.from(selected) });
   }
 
   return (
@@ -109,6 +124,33 @@ export default function SearchFilters({
           value={filters.maximumRent}
         />
       </label>
+
+      <fieldset
+        style={{
+          border: 0,
+          display: "grid",
+          gap: 8,
+          margin: 0,
+          padding: 0,
+        }}
+      >
+        <legend style={{ color: "#344054", marginBottom: 6 }}>Amenities</legend>
+        {amenities.map((amenity) => (
+          <label
+            key={amenity.amenity_id}
+            style={{ alignItems: "center", display: "flex", gap: 8 }}
+          >
+            <input
+              checked={filters.amenities.includes(amenity.name)}
+              onChange={(event) =>
+                toggleAmenity(amenity.name, event.currentTarget.checked)
+              }
+              type="checkbox"
+            />
+            {amenity.name}
+          </label>
+        ))}
+      </fieldset>
     </section>
   );
 }

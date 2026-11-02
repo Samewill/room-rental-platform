@@ -3,6 +3,7 @@ import type { FormEvent, ChangeEvent } from "react";
 
 import {
   createListing,
+  getAmenities,
   getAreas,
   getReceivedContactRequests,
   getMyListings,
@@ -16,6 +17,7 @@ import {
 } from "../api";
 import AppLink from "../components/AppLink";
 import type {
+  Amenity,
   Area,
   Listing,
   ListingCreateRequest,
@@ -38,6 +40,7 @@ type ListingFormFields = {
   depositAmount: string;
   address: string;
   dateAvailable: string;
+  amenities: string[];
 };
 
 const emptyForm: ListingFormFields = {
@@ -49,6 +52,7 @@ const emptyForm: ListingFormFields = {
   depositAmount: "",
   address: "",
   dateAvailable: "",
+  amenities: [],
 };
 
 const roomTypes: Array<{
@@ -107,6 +111,7 @@ export default function LandlordDashboardPage({
   const [listings, setListings] = useState<Listing[]>([]);
   const [contactRequests, setContactRequests] = useState<ContactRequest[]>([]);
   const [areas, setAreas] = useState<Area[]>([]);
+  const [amenities, setAmenities] = useState<Amenity[]>([]);
   const [form, setForm] = useState<ListingFormFields>(emptyForm);
   const [editingListingId, setEditingListingId] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -134,13 +139,15 @@ export default function LandlordDashboardPage({
 
     async function loadDashboard(): Promise<void> {
       try {
-        const [myListings, availableAreas] = await Promise.all([
+        const [myListings, availableAreas, availableAmenities] = await Promise.all([
           getMyListings(accessToken),
           getAreas(),
+          getAmenities(),
         ]);
         if (active) {
           setListings(myListings);
           setAreas(availableAreas);
+          setAmenities(availableAmenities);
         }
       } catch (error: unknown) {
         if (active) {
@@ -248,6 +255,7 @@ export default function LandlordDashboardPage({
       depositAmount: String(listing.deposit_amount),
       address: listing.address,
       dateAvailable: listing.date_available,
+      amenities: [...listing.amenities],
     });
     setErrorMessage(null);
     setNotice(null);
@@ -281,6 +289,7 @@ export default function LandlordDashboardPage({
       deposit_amount: form.depositAmount,
       address: form.address,
       date_available: form.dateAvailable,
+      amenities: form.amenities,
     };
 
     try {
@@ -580,6 +589,30 @@ export default function LandlordDashboardPage({
                 />
               </label>
             </div>
+            <fieldset className="landlord-amenities">
+              <legend>Amenities</legend>
+              {amenities.map((amenity) => (
+                <label key={amenity.amenity_id}>
+                  <input
+                    checked={form.amenities.includes(amenity.name)}
+                    onChange={(event) => {
+                      const selected = new Set(form.amenities);
+                      if (event.currentTarget.checked) {
+                        selected.add(amenity.name);
+                      } else {
+                        selected.delete(amenity.name);
+                      }
+                      setForm((current) => ({
+                        ...current,
+                        amenities: Array.from(selected),
+                      }));
+                    }}
+                    type="checkbox"
+                  />
+                  {amenity.name}
+                </label>
+              ))}
+            </fieldset>
             <div className="landlord-form-actions">
               <button
                 className="primary-button landlord-form-submit"
@@ -617,8 +650,15 @@ export default function LandlordDashboardPage({
               disabled={isLoading}
               onClick={() => {
                 setIsLoading(true);
-                void Promise.all([refreshListings(), getAreas()])
-                  .then(([, availableAreas]) => setAreas(availableAreas))
+                void Promise.all([
+                  refreshListings(),
+                  getAreas(),
+                  getAmenities(),
+                ])
+                  .then(([, availableAreas, availableAmenities]) => {
+                    setAreas(availableAreas);
+                    setAmenities(availableAmenities);
+                  })
                   .catch((error: unknown) =>
                     setErrorMessage(getErrorMessage(error)),
                   )
@@ -658,6 +698,11 @@ export default function LandlordDashboardPage({
                     R {Number(listing.monthly_rent).toLocaleString("en-ZA")} /
                     month · Available {listing.date_available}
                   </p>
+                  {listing.amenities.length > 0 && (
+                    <p className="landlord-listing-summary">
+                      Amenities: {listing.amenities.join(", ")}
+                    </p>
+                  )}
                   {listing.photos.length > 0 && (
                     <div className="landlord-photo-list">
                       {listing.photos.map((photo) => (

@@ -102,6 +102,11 @@ export default function ListingCard({
         <p style={{ color: "#596579", margin: 0 }}>
           {formatAvailability(listing.date_available)}
         </p>
+        {listing.amenities.length > 0 && (
+          <p aria-label="Amenities" style={{ color: "#596579" }}>
+            Amenities: {listing.amenities.join(", ")}
+          </p>
+        )}
         <AppLink
           href={`/listings/${listing.listing_id}`}
           onNavigate={onNavigate}

@@ -615,6 +615,18 @@ Use the contact request to establish the relationship between the tenant and the
 
 **Milestone:** Tenants can save their preferences and submit eligible reviews.
 
+### Implementation status
+
+The `feature/authentication` branch now includes saved searches for location,
+room type, minimum and maximum rent, and required amenities. Tenants can filter
+public listings by amenities, and landlords can select amenities when creating
+or editing a listing. Reviews are limited to tenants with an approved contact
+request, with one review allowed per request.
+
+Automated notifications remain out of scope for this phase. The database
+migration that links amenities to saved searches is prepared but has not been
+applied; amenity-based saved-search persistence requires that migration.
+
 ---
 
 # Phase 9: Add conversations and WhatsApp

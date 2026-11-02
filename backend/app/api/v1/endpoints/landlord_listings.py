@@ -23,6 +23,7 @@ from app.schemas.landlord_listing import (
 from app.schemas.listing import ListingResponse
 from app.services.landlord_listing_service import (
     LandlordListingService,
+    ListingAmenityNotFoundError,
     ListingAreaNotFoundError,
     ListingNotFoundError,
     ListingStateError,
@@ -82,6 +83,11 @@ def create_listing(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Area does not exist.",
         ) from exc
+    except ListingAmenityNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
     except SQLAlchemyError as exc:
         logger.exception("Failed to create listing")
         raise HTTPException(
@@ -115,6 +121,11 @@ def update_listing(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Area does not exist.",
+        ) from exc
+    except ListingAmenityNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
         ) from exc
     except ListingStateError as exc:
         raise HTTPException(

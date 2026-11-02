@@ -320,6 +320,9 @@ function App() {
   if (pathname === "/") {
     return (
       <ListingsPage
+        accessToken={
+          profile?.roles.includes("tenant") === true ? accessToken : null
+        }
         isAuthReady={isAuthReady}
         onNavigate={navigate}
         onRetrySessionRestore={retrySessionRestore}

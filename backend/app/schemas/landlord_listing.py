@@ -9,6 +9,7 @@ from pydantic import (
     StringConstraints,
     model_validator,
 )
+from app.schemas.amenity import AmenityName
 
 
 ListingTitle = Annotated[
@@ -50,6 +51,7 @@ class ListingCreateRequest(BaseModel):
     deposit_amount: DepositAmount
     address: ListingAddress
     date_available: date
+    amenities: list[AmenityName] = Field(default_factory=list, max_length=10)
 
 
 class ListingUpdateRequest(BaseModel):
@@ -63,6 +65,7 @@ class ListingUpdateRequest(BaseModel):
     deposit_amount: DepositAmount | None = None
     address: ListingAddress | None = None
     date_available: date | None = None
+    amenities: list[AmenityName] | None = Field(default=None, max_length=10)
 
     @model_validator(mode="after")
     def validate_changes(self) -> "ListingUpdateRequest":

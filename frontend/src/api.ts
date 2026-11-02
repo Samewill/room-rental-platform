@@ -1,5 +1,6 @@
 import type {
   Area,
+  Amenity,
   Listing,
   ListingCreateRequest,
   ListingModerationRecord,
@@ -81,6 +82,44 @@ export interface ContactRequest {
   listing_id: number;
   status: "pending" | "approved" | "rejected" | "cancelled";
   requested_at: string;
+}
+
+export type SavedSearchRoomType =
+  | "single_room"
+  | "shared_room"
+  | "bachelor_flat"
+  | "self_contained";
+
+export interface SavedSearch {
+  saved_search_id: number;
+  location: string | null;
+  room_type: SavedSearchRoomType | null;
+  minimum_rent: string | number | null;
+  maximum_rent: string | number | null;
+  amenities: string[];
+  created_at: string;
+}
+
+export interface SavedSearchCreateRequest {
+  location?: string;
+  room_type?: SavedSearchRoomType;
+  minimum_rent?: number;
+  maximum_rent?: number;
+  amenities?: string[];
+}
+
+export interface Review {
+  review_id: number;
+  contact_request_id: number;
+  rating: number;
+  comment: string | null;
+  created_at: string;
+}
+
+export interface ReviewCreateRequest {
+  contact_request_id: number;
+  rating: number;
+  comment?: string;
 }
 
 interface TokenResponse {
@@ -252,8 +291,71 @@ export function respondToContactRequest(
   });
 }
 
+export function createSavedSearch(
+  accessToken: string,
+  payload: SavedSearchCreateRequest,
+): Promise<SavedSearch> {
+  return requestJson<SavedSearch>("/api/v1/users/me/saved-searches", {
+    method: "POST",
+    headers: {
+      Authorization: "Bearer " + accessToken,
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function getMySavedSearches(
+  accessToken: string,
+): Promise<SavedSearch[]> {
+  return requestJson<SavedSearch[]>("/api/v1/users/me/saved-searches", {
+    headers: {
+      Authorization: "Bearer " + accessToken,
+    },
+  });
+}
+
+export function deleteSavedSearch(
+  accessToken: string,
+  savedSearchId: number,
+): Promise<void> {
+  return requestJson<void>(
+    `/api/v1/users/me/saved-searches/${savedSearchId}`,
+    {
+      method: "DELETE",
+      headers: {
+        Authorization: "Bearer " + accessToken,
+      },
+    },
+  );
+}
+
+export function createReview(
+  accessToken: string,
+  payload: ReviewCreateRequest,
+): Promise<Review> {
+  return requestJson<Review>("/api/v1/users/me/reviews", {
+    method: "POST",
+    headers: {
+      Authorization: "Bearer " + accessToken,
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function getMyReviews(accessToken: string): Promise<Review[]> {
+  return requestJson<Review[]>("/api/v1/users/me/reviews", {
+    headers: {
+      Authorization: "Bearer " + accessToken,
+    },
+  });
+}
+
 export function getAreas(): Promise<Area[]> {
   return requestJson<Area[]>("/api/v1/areas");
+}
+
+export function getAmenities(signal?: AbortSignal): Promise<Amenity[]> {
+  return requestJson<Amenity[]>("/api/v1/amenities", { signal });
 }
 
 export function getMyListings(accessToken: string): Promise<Listing[]> {

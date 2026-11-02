@@ -27,3 +27,7 @@ class ListingResponse(BaseModel):
     status: str = Field(max_length=7)
     created_at: datetime
     photos: list[ListingPhotoResponse] = Field(default_factory=list)
+    amenities: list[str] = Field(
+        default_factory=list,
+        validation_alias="amenity_names",
+    )

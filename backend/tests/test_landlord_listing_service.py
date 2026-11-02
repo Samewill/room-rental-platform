@@ -6,6 +6,7 @@ from unittest.mock import Mock
 
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.models.amenity import Amenity
 from app.models.listing import Listing, ListingPhoto
 from app.schemas.landlord_listing import (
     ListingCreateRequest,
@@ -14,6 +15,7 @@ from app.schemas.landlord_listing import (
 from app.services.landlord_listing_service import (
     LandlordListingService,
     ListingAreaNotFoundError,
+    ListingAmenityNotFoundError,
     ListingNotFoundError,
     ListingStateError,
 )
@@ -25,11 +27,14 @@ class LandlordListingServiceTests(unittest.TestCase):
         self.db = Mock()
         self.listings = Mock()
         self.areas = Mock()
+        self.amenities = Mock()
         self.photo_storage = Mock()
         self.service = LandlordListingService(self.db, self.photo_storage)
         self.service._listings = self.listings
         self.service._areas = self.areas
+        self.service._amenities = self.amenities
         self.areas.get_by_id.return_value = object()
+        self.amenities.get_by_names.return_value = []
 
     @staticmethod
     def make_listing(
@@ -89,6 +94,52 @@ class LandlordListingServiceTests(unittest.TestCase):
 
         self.listings.add.assert_not_called()
         self.db.commit.assert_not_called()
+
+    def test_create_assigns_selected_amenities(self) -> None:
+        wifi = Amenity(amenity_id=1, name="Wi-Fi")
+        self.amenities.get_by_names.return_value = [wifi]
+        request = self.create_request().model_copy(
+            update={"amenities": ["Wi-Fi"]},
+        )
+
+        def add_listing(listing: Listing) -> Listing:
+            listing.listing_id = 12
+            listing.created_at = datetime(2026, 10, 1)
+            return listing
+
+        self.listings.add.side_effect = add_listing
+        result = self.service.create_listing(8, request)
+
+        self.assertEqual(result.amenities, ["Wi-Fi"])
+        self.assertEqual(result.model_dump()["amenities"], ["Wi-Fi"])
+        self.assertEqual(self.listings.add.call_args.args[0].amenities, [wifi])
+
+    def test_create_rejects_unavailable_amenity(self) -> None:
+        request = self.create_request().model_copy(
+            update={"amenities": ["Wi-Fi"]},
+        )
+
+        with self.assertRaises(ListingAmenityNotFoundError):
+            self.service.create_listing(8, request)
+
+        self.listings.add.assert_not_called()
+        self.db.commit.assert_not_called()
+
+    def test_update_replaces_selected_amenities(self) -> None:
+        wifi = Amenity(amenity_id=1, name="Wi-Fi")
+        listing = self.make_listing()
+        self.listings.get_owned.return_value = listing
+        self.amenities.get_by_names.return_value = [wifi]
+
+        result = self.service.update_listing(
+            8,
+            12,
+            ListingUpdateRequest(amenities=["Wi-Fi"]),
+        )
+
+        self.assertEqual(result.amenities, ["Wi-Fi"])
+        self.assertEqual(listing.amenities, [wifi])
+        self.db.commit.assert_called_once()
 
     def test_update_resets_submitted_listing_to_draft(self) -> None:
         listing = self.make_listing(status="pending")

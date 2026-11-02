@@ -37,6 +37,8 @@ function isListing(value: unknown): value is Listing {
     typeof listing.date_available === "string" &&
     typeof listing.status === "string" &&
     typeof listing.created_at === "string" &&
+    Array.isArray(listing.amenities) &&
+    listing.amenities.every((amenity) => typeof amenity === "string") &&
     Array.isArray(listing.photos) &&
     listing.photos.every(
       (photo) =>
@@ -313,6 +315,14 @@ export default function ListingDetailsPage({
                   {formatDate(listing.date_available)}
                 </dd>
               </div>
+              {listing.amenities.length > 0 && (
+                <div>
+                  <dt style={{ color: "#596579" }}>Amenities</dt>
+                  <dd style={{ margin: "4px 0 0" }}>
+                    {listing.amenities.join(", ")}
+                  </dd>
+                </div>
+              )}
             </dl>
             {isAuthReady && (
               <section

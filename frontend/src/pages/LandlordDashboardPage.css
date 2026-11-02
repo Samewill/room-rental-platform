@@ -243,3 +243,18 @@
     padding: 19px;
   }
 }
+.landlord-amenities {
+  border: 1px solid #dfe3e7;
+  border-radius: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  margin: 0;
+  padding: 14px;
+}
+
+.landlord-amenities label {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}

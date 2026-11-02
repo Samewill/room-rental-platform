@@ -26,10 +26,16 @@ export type Listing = {
   status: string;
   created_at: string;
   photos: ListingPhoto[];
+  amenities: string[];
 };
 
 export type Area = {
   area_id: number;
+  name: string;
+};
+
+export type Amenity = {
+  amenity_id: number;
   name: string;
 };
 
@@ -46,6 +52,7 @@ export type ListingCreateRequest = {
   deposit_amount: string;
   address: string;
   date_available: string;
+  amenities?: string[];
 };
 
 export type ListingUpdateRequest = Partial<ListingCreateRequest>;
