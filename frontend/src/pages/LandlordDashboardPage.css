@@ -127,6 +127,12 @@
   padding: 18px;
 }
 
+.landlord-contact-request {
+  border: 1px solid #e3e7ed;
+  border-radius: 10px;
+  padding: 18px;
+}
+
 .landlord-listing-header h3 {
   color: #182b36;
   margin: 0 0 5px;

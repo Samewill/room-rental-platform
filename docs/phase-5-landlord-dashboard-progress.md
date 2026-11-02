@@ -66,7 +66,6 @@ Phase 5 workflow; apply it with `alembic upgrade head` before creating listings.
 
 - Add the administrator moderation workflow in Phase 7 so pending listings can
   become active.
-- Add tenant contact-request creation and landlord request views in Phase 6.
 - Configure local Cloudinary credentials and verify an actual photo upload
   before using that feature.
 - Admin invitations and two-step verification remain deferred.

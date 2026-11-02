@@ -66,11 +66,13 @@ history records were inserted during migration.
 - The backend unittest suite passes, including reporting service and endpoint
   coverage.
 - The frontend TypeScript check and production build pass.
-- Migration history resolves through `20261030_05`. Offline SQL rendering must
-  start from `20261030_04` because earlier migrations contain database
-  introspection that cannot execute in Alembic's offline mode.
+- The combined migration graph has reporting at `20261030_05` and the
+  renumbered Phase 6 contact-request migration at `20261030_06`. Offline SQL
+  rendering must start from a known parent because earlier migrations contain
+  database introspection that cannot execute in Alembic's offline mode.
 - The applied schema was inspected, and both `report` and `report_history`
-  currently contain zero rows.
+  contain one and three rows, respectively. Migration `20261030_06` did not
+  modify either reporting table.
 
 The interactive workflow has not yet been exercised in a browser using
 authenticated tenant and admin accounts.

@@ -76,6 +76,13 @@ export interface ReportHistoryRecord {
   created_at: string;
 }
 
+export interface ContactRequest {
+  request_id: number;
+  listing_id: number;
+  status: "pending" | "approved" | "rejected" | "cancelled";
+  requested_at: string;
+}
+
 interface TokenResponse {
   access_token: string;
   token_type: "bearer";
@@ -83,6 +90,20 @@ interface TokenResponse {
 }
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "");
+
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly statusCode: number,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
+export function buildApiUrl(path: string): string {
+  return `${apiBaseUrl}${path.startsWith("/") ? path : `/${path}`}`;
+}
 
 async function requestJson<T>(
   path: string,
@@ -95,7 +116,7 @@ async function requestJson<T>(
     headers.set("Content-Type", "application/json");
   }
 
-  const response = await fetch(`${apiBaseUrl}${path}`, {
+  const response = await fetch(buildApiUrl(path), {
     ...init,
     headers,
   });
@@ -105,7 +126,7 @@ async function requestJson<T>(
     : await response.text();
 
   if (!response.ok) {
-    throw new Error(getErrorMessage(body, response.status));
+    throw new ApiError(getErrorMessage(body, response.status), response.status);
   }
 
   return body as T;
@@ -163,6 +184,71 @@ export function getMyProfile(accessToken: string): Promise<UserProfile> {
     headers: {
       Authorization: `Bearer ${accessToken}`,
     },
+  });
+}
+
+export function createContactRequest(
+  accessToken: string,
+  listingId: number,
+): Promise<ContactRequest> {
+  return requestJson<ContactRequest>(
+    `/api/v1/listings/${listingId}/contact-requests`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
+  );
+}
+
+export function getMyContactRequests(
+  accessToken: string,
+): Promise<ContactRequest[]> {
+  return requestJson<ContactRequest[]>("/api/v1/users/me/contact-requests", {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+}
+
+export function getReceivedContactRequests(
+  accessToken: string,
+): Promise<ContactRequest[]> {
+  return requestJson<ContactRequest[]>(
+    "/api/v1/users/me/received-requests",
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
+  );
+}
+
+export function cancelContactRequest(
+  accessToken: string,
+  requestId: number,
+): Promise<ContactRequest> {
+  return requestJson<ContactRequest>(`/api/v1/contact-requests/${requestId}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ status: "cancelled" }),
+  });
+}
+
+export function respondToContactRequest(
+  accessToken: string,
+  requestId: number,
+  status: "approved" | "rejected",
+): Promise<ContactRequest> {
+  return requestJson<ContactRequest>(`/api/v1/contact-requests/${requestId}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ status }),
   });
 }
 

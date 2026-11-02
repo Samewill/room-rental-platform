@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     database_url: str
     jwt_secret_key: SecretStr | None = None
     access_token_expire_minutes: int = Field(default=30, gt=0)
+    cors_allowed_origins: str = (
+        "http://127.0.0.1:5173,http://localhost:5173,"
+        "http://127.0.0.1:5174,http://localhost:5174"
+    )
     cloudinary_cloud_name: str | None = None
     cloudinary_api_key: str | None = None
     cloudinary_api_secret: SecretStr | None = None

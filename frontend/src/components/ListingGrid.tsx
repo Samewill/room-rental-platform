@@ -2,9 +2,13 @@ import ListingCard, { type Listing } from "./ListingCard";
 
 type ListingGridProps = {
   listings: Listing[];
+  onNavigate: (path: string) => void;
 };
 
-export default function ListingGrid({ listings }: ListingGridProps) {
+export default function ListingGrid({
+  listings,
+  onNavigate,
+}: ListingGridProps) {
   return (
     <ul
       style={{
@@ -18,7 +22,7 @@ export default function ListingGrid({ listings }: ListingGridProps) {
     >
       {listings.map((listing) => (
         <li key={listing.listing_id}>
-          <ListingCard listing={listing} />
+          <ListingCard listing={listing} onNavigate={onNavigate} />
         </li>
       ))}
     </ul>

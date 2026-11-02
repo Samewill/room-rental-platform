@@ -25,6 +25,42 @@
   width: 100%;
 }
 
+.contact-requests {
+  border-top: 1px solid #e7e9ed;
+  margin-top: 24px;
+  padding-top: 20px;
+}
+
+.contact-requests h2 {
+  color: #182b36;
+  font-size: 19px;
+  margin: 0 0 12px;
+}
+
+.contact-request-list {
+  display: grid;
+  gap: 12px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.contact-request-item {
+  background: #f8faf9;
+  border: 1px solid #e1e8e4;
+  border-radius: 9px;
+  padding: 12px 14px;
+}
+
+.contact-request-item p {
+  color: #596579;
+  margin: 4px 0;
+}
+
+.contact-request-item strong {
+  color: #182b36;
+}
+
 .eyebrow {
   color: #547361;
   font-size: 12px;

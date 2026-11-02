@@ -38,8 +38,9 @@ continue to require `active` status and a latest `approved` decision.
 
 Migration `20261030_04` ensures the `moderation_decision_enum` and
 `listing_moderation` table exist. It preserves an existing moderation table and
-history. The configured database currently reports revision `20261030_04`;
-the moderation table still contains its four existing history rows.
+history. The configured database has advanced through reporting migration
+`20261030_05`; the moderation table still contains its four existing history
+rows.
 
 ## Not included
 

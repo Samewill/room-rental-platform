@@ -1,9 +1,11 @@
 import type { Listing } from "../types/listing";
+import AppLink from "./AppLink";
 
 export type { Listing, ListingPhoto } from "../types/listing";
 
 type ListingCardProps = {
   listing: Listing;
+  onNavigate: (path: string) => void;
 };
 
 function formatRent(value: string | number): string {
@@ -30,7 +32,10 @@ function formatAvailability(value: string): string {
   }).format(date)}`;
 }
 
-export default function ListingCard({ listing }: ListingCardProps) {
+export default function ListingCard({
+  listing,
+  onNavigate,
+}: ListingCardProps) {
   return (
     <article
       aria-labelledby={`listing-${listing.listing_id}`}
@@ -97,8 +102,9 @@ export default function ListingCard({ listing }: ListingCardProps) {
         <p style={{ color: "#596579", margin: 0 }}>
           {formatAvailability(listing.date_available)}
         </p>
-        <a
+        <AppLink
           href={`/listings/${listing.listing_id}`}
+          onNavigate={onNavigate}
           style={{
             background: "#244b35",
             borderRadius: 8,
@@ -111,7 +117,7 @@ export default function ListingCard({ listing }: ListingCardProps) {
           }}
         >
           View details
-        </a>
+        </AppLink>
       </div>
     </article>
   );

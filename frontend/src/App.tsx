@@ -2,11 +2,13 @@ import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 
 import {
+  ApiError,
   getMyProfile,
   login,
   registerAccount,
   type UserProfile,
 } from "./api";
+import AppLink from "./components/AppLink";
 import DashboardPage, { type DashboardRole } from "./pages/DashboardPage";
 import AdminReportsPage from "./pages/AdminReportsPage";
 import AdminModerationDashboardPage from "./pages/AdminModerationDashboardPage";
@@ -25,6 +27,8 @@ type FormFields = {
   password: string;
   businessName: string;
 };
+
+const AUTH_TOKEN_STORAGE_KEY = "room-rental-access-token";
 
 const emptyForm: FormFields = {
   fullName: "",
@@ -58,9 +62,84 @@ function App() {
   const [fields, setFields] = useState<FormFields>(emptyForm);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [isAuthReady, setIsAuthReady] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [sessionRestoreError, setSessionRestoreError] = useState<string | null>(
+    null,
+  );
+  const [sessionNotice, setSessionNotice] = useState<string | null>(null);
+  const [restoreAttempt, setRestoreAttempt] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    let isCurrent = true;
+
+    async function restoreSession() {
+      setIsAuthReady(false);
+      setSessionRestoreError(null);
+      setSessionNotice(null);
+
+      let savedToken: string | null;
+      try {
+        savedToken = window.sessionStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
+      } catch {
+        if (isCurrent) {
+          setSessionRestoreError(
+            "Browser session storage is unavailable. Enable it and sign in again.",
+          );
+          setIsAuthReady(true);
+        }
+        return;
+      }
+
+      if (!savedToken) {
+        if (isCurrent) {
+          setIsAuthReady(true);
+        }
+        return;
+      }
+
+      try {
+        const restoredProfile = await getMyProfile(savedToken);
+        getDashboardRole(restoredProfile.roles);
+        if (isCurrent) {
+          setAccessToken(savedToken);
+          setProfile(restoredProfile);
+        }
+      } catch (error: unknown) {
+        if (!isCurrent) {
+          return;
+        }
+
+        if (error instanceof ApiError && error.statusCode === 401) {
+          try {
+            window.sessionStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+            setSessionNotice("Your session expired. Please sign in again.");
+          } catch {
+            setSessionRestoreError(
+              "Your session expired, but browser storage could not be cleared. Please close this tab after signing in again.",
+            );
+          }
+        } else {
+          setSessionRestoreError(
+            error instanceof Error
+              ? `We couldn't verify your saved session: ${error.message}`
+              : "We couldn't verify your saved session. Check your connection and try again.",
+          );
+        }
+      } finally {
+        if (isCurrent) {
+          setIsAuthReady(true);
+        }
+      }
+    }
+
+    void restoreSession();
+    return () => {
+      isCurrent = false;
+    };
+  }, [restoreAttempt]);
 
   useEffect(() => {
     function syncPathname() {
@@ -73,8 +152,15 @@ function App() {
   }, []);
 
   function navigate(path: string) {
-    window.history.pushState(null, "", path);
-    setPathname(path);
+    const destination = new URL(path, window.location.href);
+    if (destination.origin !== window.location.origin) {
+      window.location.assign(destination.href);
+      return;
+    }
+    window.history.pushState(null, "", destination.href);
+    setPathname(destination.pathname);
+    setMode(destination.pathname === "/register" ? "register" : "login");
+    window.scrollTo({ top: 0 });
   }
 
   function updateField(field: keyof FormFields, value: string) {
@@ -84,6 +170,8 @@ function App() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setErrorMessage(null);
+    setSessionRestoreError(null);
+    setSessionNotice(null);
     setNotice(null);
     setIsSubmitting(true);
 
@@ -116,9 +204,15 @@ function App() {
       });
       const currentProfile = await getMyProfile(tokenResponse.access_token);
       const dashboardRole = getDashboardRole(currentProfile.roles);
+      window.sessionStorage.setItem(
+        AUTH_TOKEN_STORAGE_KEY,
+        tokenResponse.access_token,
+      );
       setAccessToken(tokenResponse.access_token);
       setProfile(currentProfile);
       setFields(emptyForm);
+      setSessionRestoreError(null);
+      setSessionNotice(null);
       navigate(`/${dashboardRole}`);
     } catch (error: unknown) {
       setErrorMessage(
@@ -132,12 +226,28 @@ function App() {
   }
 
   function handleSignOut() {
+    let storageError: string | null = null;
+    try {
+      window.sessionStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+    } catch {
+      storageError =
+        "The saved session could not be cleared from this tab. Close this tab to discard it.";
+    }
+
     setAccessToken(null);
     setProfile(null);
     setFields(emptyForm);
-    setErrorMessage(null);
+    setErrorMessage(storageError);
+    setSessionRestoreError(null);
+    setSessionNotice(null);
     setNotice(null);
-    navigate("/");
+    navigate(storageError === null ? "/" : "/login");
+  }
+
+  function retrySessionRestore() {
+    setSessionRestoreError(null);
+    setSessionNotice(null);
+    setRestoreAttempt((attempt) => attempt + 1);
   }
 
   const listingMatch = pathname.match(/^\/listings\/(\d+)\/?$/);
@@ -146,7 +256,13 @@ function App() {
     if (Number.isSafeInteger(listingId) && listingId > 0) {
       return (
         <ListingDetailsPage
+          accessToken={
+            profile?.roles.includes("tenant") === true ? accessToken : null
+          }
+          isAuthReady={isAuthReady}
+          isAuthenticated={profile !== null}
           listingId={listingId}
+          onNavigate={navigate}
           onReportListing={
             profile !== null &&
             accessToken !== null &&
@@ -154,6 +270,9 @@ function App() {
               ? (id) => navigate(`/tenant/reports/${id}`)
               : undefined
           }
+          onRetrySessionRestore={retrySessionRestore}
+          sessionNotice={sessionNotice}
+          sessionRestoreError={sessionRestoreError}
         />
       );
     }
@@ -199,7 +318,25 @@ function App() {
   }
 
   if (pathname === "/") {
-    return <ListingsPage />;
+    return (
+      <ListingsPage
+        isAuthReady={isAuthReady}
+        onNavigate={navigate}
+        onRetrySessionRestore={retrySessionRestore}
+        onSignOut={handleSignOut}
+        profile={profile}
+        sessionNotice={sessionNotice}
+        sessionRestoreError={sessionRestoreError}
+      />
+    );
+  }
+
+  if (!isAuthReady) {
+    return (
+      <main className="page-shell">
+        <p role="status">Checking your session…</p>
+      </main>
+    );
   }
 
   if (
@@ -213,6 +350,7 @@ function App() {
         return (
           <LandlordDashboardPage
             accessToken={accessToken}
+            onNavigate={navigate}
             onSignOut={handleSignOut}
             profile={profile}
           />
@@ -232,6 +370,8 @@ function App() {
 
       return (
         <DashboardPage
+          accessToken={accessToken}
+          onNavigate={navigate}
           onOpenReports={() => navigate("/tenant/reports")}
           onSignOut={handleSignOut}
           profile={profile}
@@ -264,6 +404,23 @@ function App() {
         {errorMessage !== null && (
           <p className="message message-error" role="alert">
             {errorMessage}
+          </p>
+        )}
+        {sessionRestoreError !== null && (
+          <div className="message message-error" role="alert">
+            <p>{sessionRestoreError}</p>
+            <button
+              className="text-button"
+              onClick={retrySessionRestore}
+              type="button"
+            >
+              Retry session check
+            </button>
+          </div>
+        )}
+        {sessionNotice !== null && (
+          <p className="message message-error" role="status">
+            {sessionNotice}
           </p>
         )}
 
@@ -391,9 +548,9 @@ function App() {
           </button>
         </p>
         <p className="switch-mode">
-          <a className="text-button" href="/">
+          <AppLink className="text-button" href="/" onNavigate={navigate}>
             Browse rooms
-          </a>
+          </AppLink>
         </p>
       </section>
     </main>
