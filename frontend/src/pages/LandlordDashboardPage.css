@@ -18,6 +18,26 @@
   justify-content: space-between;
 }
 
+.landlord-header-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.landlord-messages-link {
+  align-items: center;
+  color: #244b35;
+  display: inline-flex;
+  justify-content: center;
+  min-height: 40px;
+  text-decoration: none;
+}
+
+.landlord-messages-link:hover {
+  background: #f4f8f5;
+}
+
 .landlord-signout {
   min-width: 100px;
 }
@@ -231,6 +251,9 @@
 }
 
 @media (max-width: 640px) {
+  .landlord-header-actions {
+    justify-content: flex-start;
+  }
   .landlord-header {
     align-items: flex-start;
   }
@@ -242,4 +265,19 @@
   .landlord-panel {
     padding: 19px;
   }
+}
+.landlord-amenities {
+  border: 1px solid #dfe3e7;
+  border-radius: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  margin: 0;
+  padding: 14px;
+}
+
+.landlord-amenities label {
+  align-items: center;
+  display: flex;
+  gap: 8px;
 }

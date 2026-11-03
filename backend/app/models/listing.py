@@ -18,6 +18,7 @@ from sqlalchemy.dialects.postgresql import ENUM
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+from app.models.amenity import Amenity, listing_amenities
 
 
 class Listing(Base):
@@ -85,6 +86,16 @@ class Listing(Base):
         lazy="selectin",
         order_by="ListingPhoto.photo_id",
     )
+    amenities: Mapped[list[Amenity]] = relationship(
+        secondary=listing_amenities,
+        back_populates="listings",
+        lazy="selectin",
+        order_by="Amenity.name",
+    )
+
+    @property
+    def amenity_names(self) -> list[str]:
+        return [amenity.name for amenity in self.amenities]
 
 
 class ListingPhoto(Base):

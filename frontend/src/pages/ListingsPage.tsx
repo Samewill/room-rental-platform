@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { buildApiUrl } from "../api";
+import {
+  buildApiUrl,
+  createSavedSearch,
+  getAmenities,
+  type SavedSearchCreateRequest,
+  type SavedSearchRoomType,
+} from "../api";
 import type { UserProfile } from "../api";
 import AppLink from "../components/AppLink";
 import ListingGrid from "../components/ListingGrid";
@@ -8,11 +14,7 @@ import SearchFilters, {
   type ListingFilters,
 } from "../components/SearchFilters";
 import type { Listing } from "../components/ListingCard";
-
-type Area = {
-  area_id: number;
-  name: string;
-};
+import type { Amenity, Area } from "../types/listing";
 
 function isListing(value: unknown): value is Listing {
   if (typeof value !== "object" || value === null) {
@@ -35,6 +37,8 @@ function isListing(value: unknown): value is Listing {
     typeof listing.date_available === "string" &&
     typeof listing.status === "string" &&
     typeof listing.created_at === "string" &&
+    Array.isArray(listing.amenities) &&
+    listing.amenities.every((amenity) => typeof amenity === "string") &&
     Array.isArray(listing.photos) &&
     listing.photos.every(
       (photo) =>
@@ -56,14 +60,40 @@ function isArea(value: unknown): value is Area {
   return typeof area.area_id === "number" && typeof area.name === "string";
 }
 
-const emptyFilters: ListingFilters = {
-  location: "",
-  roomType: "",
-  minimumRent: "",
-  maximumRent: "",
-};
+function isAmenity(value: unknown): value is Amenity {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const amenity = value as Record<string, unknown>;
+  return (
+    typeof amenity.amenity_id === "number" &&
+    typeof amenity.name === "string"
+  );
+}
+
+function getFiltersFromSearch(search: string): ListingFilters {
+  const params = new URLSearchParams(search);
+  const roomType = getSavedSearchRoomType(params.get("roomType") ?? "");
+  const minimumRent = params.get("minimumRent") ?? "";
+  const maximumRent = params.get("maximumRent") ?? "";
+
+  return {
+    location: params.get("location") ?? "",
+    roomType: roomType ?? "",
+    minimumRent:
+      minimumRent !== "" && Number.isFinite(Number(minimumRent))
+        ? minimumRent
+        : "",
+    maximumRent:
+      maximumRent !== "" && Number.isFinite(Number(maximumRent))
+        ? maximumRent
+        : "",
+    amenities: params.getAll("amenity"),
+  };
+}
 
 type ListingsPageProps = {
+  accessToken: string | null;
   isAuthReady: boolean;
   onNavigate: (path: string) => void;
   onRetrySessionRestore: () => void;
@@ -83,7 +113,20 @@ function getDashboardPath(profile: UserProfile): string {
   return "/tenant";
 }
 
+function getSavedSearchRoomType(value: string): SavedSearchRoomType | null {
+  switch (value) {
+    case "single_room":
+    case "shared_room":
+    case "bachelor_flat":
+    case "self_contained":
+      return value;
+    default:
+      return null;
+  }
+}
+
 export default function ListingsPage({
+  accessToken,
   isAuthReady,
   onNavigate,
   onRetrySessionRestore,
@@ -94,19 +137,28 @@ export default function ListingsPage({
 }: ListingsPageProps) {
   const [listings, setListings] = useState<Listing[]>([]);
   const [areas, setAreas] = useState<Area[]>([]);
-  const [filters, setFilters] = useState<ListingFilters>(emptyFilters);
+  const [amenities, setAmenities] = useState<Amenity[]>([]);
+  const [filters, setFilters] = useState<ListingFilters>(() =>
+    getFiltersFromSearch(window.location.search),
+  );
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
+  const [isSavingSearch, setIsSavingSearch] = useState(false);
+  const [savedSearchError, setSavedSearchError] = useState<string | null>(null);
+  const [savedSearchNotice, setSavedSearchNotice] = useState<string | null>(
+    null,
+  );
 
   const loadListings = useCallback(async (signal: AbortSignal) => {
     setIsLoading(true);
     setError(null);
 
     try {
-      const [listingsResponse, areasResponse] = await Promise.all([
+      const [listingsResponse, areasResponse, amenitiesPayload] = await Promise.all([
         fetch(buildApiUrl("/api/v1/listings"), { signal }),
         fetch(buildApiUrl("/api/v1/areas"), { signal }),
+        getAmenities(signal),
       ]);
       if (!listingsResponse.ok) {
         throw new Error(
@@ -118,7 +170,6 @@ export default function ListingsPage({
           `Areas request failed with status ${areasResponse.status}`,
         );
       }
-
       const [listingsPayload, areasPayload]: [unknown, unknown] =
         await Promise.all([listingsResponse.json(), areasResponse.json()]);
       if (!Array.isArray(listingsPayload) || !listingsPayload.every(isListing)) {
@@ -127,9 +178,16 @@ export default function ListingsPage({
       if (!Array.isArray(areasPayload) || !areasPayload.every(isArea)) {
         throw new Error("The areas response has an unexpected format.");
       }
+      if (
+        !Array.isArray(amenitiesPayload) ||
+        !amenitiesPayload.every(isAmenity)
+      ) {
+        throw new Error("The amenities response has an unexpected format.");
+      }
 
       setListings(listingsPayload);
       setAreas(areasPayload);
+      setAmenities(amenitiesPayload);
     } catch (requestError) {
       if (signal.aborted) {
         return;
@@ -184,19 +242,68 @@ export default function ListingsPage({
         minimumRent === null || rent >= minimumRent;
       const matchesMaximumRent =
         maximumRent === null || rent <= maximumRent;
+      const matchesAmenities = filters.amenities.every((amenity) =>
+        listing.amenities.includes(amenity),
+      );
 
       return (
         matchesLocation &&
         matchesRoomType &&
         matchesMinimumRent &&
-        matchesMaximumRent
+        matchesMaximumRent &&
+        matchesAmenities
       );
     });
   }, [areas, filters, listings]);
 
-  const hasActiveFilters = Object.values(filters).some(
-    (value) => value.trim() !== "",
-  );
+  const hasActiveFilters =
+    Object.values({
+      location: filters.location,
+      roomType: filters.roomType,
+      minimumRent: filters.minimumRent,
+      maximumRent: filters.maximumRent,
+    }).some((value) => value.trim() !== "") || filters.amenities.length > 0;
+
+  async function handleSaveSearch(): Promise<void> {
+    if (accessToken === null || isSavingSearch) {
+      return;
+    }
+
+    const payload: SavedSearchCreateRequest = {};
+    const location = filters.location.trim();
+    if (location !== "") {
+      payload.location = location;
+    }
+    const roomType = getSavedSearchRoomType(filters.roomType);
+    if (roomType !== null) {
+      payload.room_type = roomType;
+    }
+    if (filters.minimumRent !== "") {
+      payload.minimum_rent = Number(filters.minimumRent);
+    }
+    if (filters.maximumRent !== "") {
+      payload.maximum_rent = Number(filters.maximumRent);
+    }
+    if (filters.amenities.length > 0) {
+      payload.amenities = filters.amenities;
+    }
+
+    setIsSavingSearch(true);
+    setSavedSearchError(null);
+    setSavedSearchNotice(null);
+    try {
+      await createSavedSearch(accessToken, payload);
+      setSavedSearchNotice("Search saved. You can view it from your dashboard.");
+    } catch (saveError: unknown) {
+      setSavedSearchError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Your search could not be saved.",
+      );
+    } finally {
+      setIsSavingSearch(false);
+    }
+  }
 
   return (
     <main
@@ -235,7 +342,7 @@ export default function ListingsPage({
               Find a room to call home
             </h1>
             <p style={{ color: "#596579", margin: 0 }}>
-              Browse rooms currently available for rent.
+              Browse rooms available now or soon.
             </p>
           </div>
           <nav
@@ -410,7 +517,33 @@ export default function ListingsPage({
         )}
 
         {!isLoading && !error && (
-          <SearchFilters filters={filters} onChange={setFilters} />
+          <>
+            <SearchFilters
+              amenities={amenities}
+              filters={filters}
+              onChange={setFilters}
+            />
+            {profile?.roles.includes("tenant") &&
+              accessToken !== null &&
+              hasActiveFilters && (
+                <div style={{ margin: "-8px 0 24px" }}>
+                  <button
+                    className="secondary-button"
+                    disabled={isSavingSearch}
+                    onClick={() => void handleSaveSearch()}
+                    type="button"
+                  >
+                    {isSavingSearch ? "Saving search…" : "Save this search"}
+                  </button>
+                  {savedSearchError !== null && (
+                    <p role="alert">{savedSearchError}</p>
+                  )}
+                  {savedSearchNotice !== null && (
+                    <p role="status">{savedSearchNotice}</p>
+                  )}
+                </div>
+              )}
+          </>
         )}
 
         {!isLoading && !error && listings.length === 0 && (

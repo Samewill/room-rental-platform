@@ -2,8 +2,14 @@ import { useEffect, useState } from "react";
 
 import {
   cancelContactRequest,
+  createReview,
+  deleteSavedSearch,
   getMyContactRequests,
+  getMyReviews,
+  getMySavedSearches,
   type ContactRequest,
+  type Review,
+  type SavedSearch,
   type UserProfile,
 } from "../api";
 import AppLink from "../components/AppLink";
@@ -43,6 +49,51 @@ const dashboardContent: Record<
   },
 };
 
+function formatDate(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "Date unavailable";
+  }
+  return new Intl.DateTimeFormat("en-ZA", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
+}
+
+function getSavedSearchLabel(search: SavedSearch): string {
+  const filters = [
+    search.location,
+    search.room_type?.replaceAll("_", " "),
+    search.minimum_rent === null
+      ? null
+      : `min R ${Number(search.minimum_rent).toLocaleString("en-ZA")}`,
+    search.maximum_rent === null
+      ? null
+      : `max R ${Number(search.maximum_rent).toLocaleString("en-ZA")}`,
+    ...search.amenities,
+  ].filter((value): value is string => value !== null);
+  return filters.length === 0 ? "All available rooms" : filters.join(" · ");
+}
+
+function getSavedSearchPath(search: SavedSearch): string {
+  const params = new URLSearchParams();
+  if (search.location !== null) {
+    params.set("location", search.location);
+  }
+  if (search.room_type !== null) {
+    params.set("roomType", search.room_type);
+  }
+  if (search.minimum_rent !== null) {
+    params.set("minimumRent", String(search.minimum_rent));
+  }
+  if (search.maximum_rent !== null) {
+    params.set("maximumRent", String(search.maximum_rent));
+  }
+  search.amenities.forEach((amenity) => params.append("amenity", amenity));
+  const query = params.toString();
+  return query === "" ? "/" : `/?${query}`;
+}
+
 export default function DashboardPage({
   accessToken,
   onNavigate,
@@ -67,24 +118,51 @@ export default function DashboardPage({
   const [contactRequestActionNotice, setContactRequestActionNotice] = useState<
     string | null
   >(null);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [reviewsError, setReviewsError] = useState<string | null>(null);
+  const [isLoadingReviews, setIsLoadingReviews] = useState(true);
+  const [reviewContactRequestId, setReviewContactRequestId] = useState<
+    number | null
+  >(null);
+  const [reviewRating, setReviewRating] = useState("5");
+  const [reviewComment, setReviewComment] = useState("");
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [reviewActionError, setReviewActionError] = useState<string | null>(
+    null,
+  );
+  const [reviewActionNotice, setReviewActionNotice] = useState<string | null>(
+    null,
+  );
+  const [savedSearches, setSavedSearches] = useState<SavedSearch[]>([]);
+  const [savedSearchesError, setSavedSearchesError] = useState<string | null>(
+    null,
+  );
+  const [isLoadingSavedSearches, setIsLoadingSavedSearches] = useState(true);
+  const [deletingSavedSearchId, setDeletingSavedSearchId] = useState<
+    number | null
+  >(null);
+  const [savedSearchActionError, setSavedSearchActionError] = useState<
+    string | null
+  >(null);
 
   useEffect(() => {
     if (role !== "tenant") {
       return;
     }
 
-    let isCurrent = true;
+    let active = true;
+    setContactRequests([]);
     setContactRequestsError(null);
     setIsLoadingContactRequests(true);
 
     async function loadContactRequests(): Promise<void> {
       try {
         const requests = await getMyContactRequests(accessToken);
-        if (isCurrent) {
+        if (active) {
           setContactRequests(requests);
         }
       } catch (error: unknown) {
-        if (isCurrent) {
+        if (active) {
           setContactRequestsError(
             error instanceof Error
               ? error.message
@@ -92,7 +170,7 @@ export default function DashboardPage({
           );
         }
       } finally {
-        if (isCurrent) {
+        if (active) {
           setIsLoadingContactRequests(false);
         }
       }
@@ -100,21 +178,83 @@ export default function DashboardPage({
 
     void loadContactRequests();
     return () => {
-      isCurrent = false;
+      active = false;
     };
   }, [accessToken, role]);
 
-  function formatRequestDate(value: string): string {
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) {
-      return "Date unavailable";
+  useEffect(() => {
+    if (role !== "tenant") {
+      return;
     }
 
-    return new Intl.DateTimeFormat("en-ZA", {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(date);
-  }
+    let active = true;
+    setReviews([]);
+    setReviewsError(null);
+    setIsLoadingReviews(true);
+
+    async function loadReviews(): Promise<void> {
+      try {
+        const tenantReviews = await getMyReviews(accessToken);
+        if (active) {
+          setReviews(tenantReviews);
+        }
+      } catch (error: unknown) {
+        if (active) {
+          setReviewsError(
+            error instanceof Error
+              ? error.message
+              : "Your reviews could not be loaded.",
+          );
+        }
+      } finally {
+        if (active) {
+          setIsLoadingReviews(false);
+        }
+      }
+    }
+
+    void loadReviews();
+    return () => {
+      active = false;
+    };
+  }, [accessToken, role]);
+
+  useEffect(() => {
+    if (role !== "tenant") {
+      return;
+    }
+
+    let active = true;
+    setSavedSearches([]);
+    setSavedSearchesError(null);
+    setIsLoadingSavedSearches(true);
+
+    async function loadSavedSearches(): Promise<void> {
+      try {
+        const searches = await getMySavedSearches(accessToken);
+        if (active) {
+          setSavedSearches(searches);
+        }
+      } catch (error: unknown) {
+        if (active) {
+          setSavedSearchesError(
+            error instanceof Error
+              ? error.message
+              : "Your saved searches could not be loaded.",
+          );
+        }
+      } finally {
+        if (active) {
+          setIsLoadingSavedSearches(false);
+        }
+      }
+    }
+
+    void loadSavedSearches();
+    return () => {
+      active = false;
+    };
+  }, [accessToken, role]);
 
   async function handleCancelContactRequest(
     requestId: number,
@@ -123,10 +263,7 @@ export default function DashboardPage({
     setContactRequestActionNotice(null);
     setUpdatingRequestId(requestId);
     try {
-      const updatedRequest = await cancelContactRequest(
-        accessToken,
-        requestId,
-      );
+      const updatedRequest = await cancelContactRequest(accessToken, requestId);
       setContactRequests((requests) =>
         requests.map((request) =>
           request.request_id === updatedRequest.request_id
@@ -143,6 +280,54 @@ export default function DashboardPage({
       );
     } finally {
       setUpdatingRequestId(null);
+    }
+  }
+
+  async function handleDeleteSavedSearch(savedSearchId: number): Promise<void> {
+    setSavedSearchActionError(null);
+    setDeletingSavedSearchId(savedSearchId);
+    try {
+      await deleteSavedSearch(accessToken, savedSearchId);
+      setSavedSearches((searches) =>
+        searches.filter((search) => search.saved_search_id !== savedSearchId),
+      );
+    } catch (error: unknown) {
+      setSavedSearchActionError(
+        error instanceof Error
+          ? error.message
+          : "The saved search could not be deleted.",
+      );
+    } finally {
+      setDeletingSavedSearchId(null);
+    }
+  }
+
+  async function handleSubmitReview(
+    contactRequestId: number,
+  ): Promise<void> {
+    setReviewActionError(null);
+    setReviewActionNotice(null);
+    setIsSubmittingReview(true);
+    try {
+      const comment = reviewComment.trim();
+      const review = await createReview(accessToken, {
+        contact_request_id: contactRequestId,
+        rating: Number(reviewRating),
+        ...(comment === "" ? {} : { comment }),
+      });
+      setReviews((currentReviews) => [review, ...currentReviews]);
+      setReviewContactRequestId(null);
+      setReviewRating("5");
+      setReviewComment("");
+      setReviewActionNotice("Your review was submitted.");
+    } catch (error: unknown) {
+      setReviewActionError(
+        error instanceof Error
+          ? error.message
+          : "Your review could not be submitted.",
+      );
+    } finally {
+      setIsSubmittingReview(false);
     }
   }
 
@@ -186,6 +371,13 @@ export default function DashboardPage({
               >
                 Browse rooms
               </AppLink>
+              <AppLink
+                className="tenant-nav-link"
+                href="/conversations"
+                onNavigate={onNavigate}
+              >
+                Messages
+              </AppLink>
               <button
                 className="tenant-signout"
                 onClick={onSignOut}
@@ -200,7 +392,7 @@ export default function DashboardPage({
             <div className="tenant-hero-copy">
               <p className="tenant-eyebrow">YOUR TENANT SPACE</p>
               <h1 id="dashboard-heading">
-                Welcome back, {profile.full_name.split(" ")[0]}.
+                Welcome back, {profile.full_name.trim().split(/\s+/)[0]}.
               </h1>
               <p>
                 Keep track of your room enquiries and find your next place to
@@ -242,7 +434,10 @@ export default function DashboardPage({
               </div>
             </article>
             <article className="tenant-stat-card">
-              <span aria-hidden="true" className="tenant-stat-icon tenant-icon-pending">
+              <span
+                aria-hidden="true"
+                className="tenant-stat-icon tenant-icon-pending"
+              >
                 ◷
               </span>
               <div>
@@ -253,7 +448,10 @@ export default function DashboardPage({
               </div>
             </article>
             <article className="tenant-stat-card">
-              <span aria-hidden="true" className="tenant-stat-icon tenant-icon-replied">
+              <span
+                aria-hidden="true"
+                className="tenant-stat-icon tenant-icon-replied"
+              >
                 ✓
               </span>
               <div>
@@ -266,122 +464,363 @@ export default function DashboardPage({
           </section>
 
           <div className="tenant-content-grid">
-            <section
-              aria-labelledby="contact-requests-heading"
-              className="tenant-panel tenant-requests-panel"
-            >
-              <div className="tenant-panel-heading">
-                <div>
-                  <p className="tenant-eyebrow tenant-eyebrow-muted">
-                    STAY IN THE LOOP
-                  </p>
-                  <h2 id="contact-requests-heading">Your enquiries</h2>
-                </div>
-                {contactRequests.length > 5 && (
-                  <span className="tenant-count">
-                    Latest 5 of {contactRequests.length}
-                  </span>
-                )}
-              </div>
-
-              {isLoadingContactRequests && (
-                <p className="tenant-inline-state" role="status">
-                  Loading your enquiries…
-                </p>
-              )}
-              {contactRequestsError !== null && (
-                <p className="message message-error" role="alert">
-                  {contactRequestsError}
-                </p>
-              )}
-              {contactRequestActionError !== null && (
-                <p className="message message-error" role="alert">
-                  {contactRequestActionError}
-                </p>
-              )}
-              {contactRequestActionNotice !== null && (
-                <p className="message message-success" role="status">
-                  {contactRequestActionNotice}
-                </p>
-              )}
-
-              {!isLoadingContactRequests &&
-                contactRequestsError === null &&
-                contactRequests.length === 0 && (
-                  <div className="tenant-empty-state">
-                    <span aria-hidden="true" className="tenant-empty-icon">
-                      ⌂
-                    </span>
-                    <h3>Your next chapter starts with a room</h3>
-                    <p>
-                      When you enquire about a room, you’ll be able to follow
-                      the response right here.
+            <div className="tenant-main-column">
+              <section
+                aria-labelledby="contact-requests-heading"
+                className="tenant-panel tenant-requests-panel"
+              >
+                <div className="tenant-panel-heading">
+                  <div>
+                    <p className="tenant-eyebrow tenant-eyebrow-muted">
+                      STAY IN THE LOOP
                     </p>
-                    <AppLink
-                      className="tenant-empty-link"
-                      href="/"
-                      onNavigate={onNavigate}
-                    >
-                      Browse available rooms <span aria-hidden="true">→</span>
-                    </AppLink>
+                    <h2 id="contact-requests-heading">Your enquiries</h2>
                   </div>
+                  {contactRequests.length > 5 && (
+                    <span className="tenant-count">
+                      Latest 5 of {contactRequests.length}
+                    </span>
+                  )}
+                </div>
+
+                {isLoadingContactRequests && (
+                  <p className="tenant-inline-state" role="status">
+                    Loading your enquiries…
+                  </p>
+                )}
+                {contactRequestsError !== null && (
+                  <p className="message message-error" role="alert">
+                    {contactRequestsError}
+                  </p>
+                )}
+                {contactRequestActionError !== null && (
+                  <p className="message message-error" role="alert">
+                    {contactRequestActionError}
+                  </p>
+                )}
+                {contactRequestActionNotice !== null && (
+                  <p className="message message-success" role="status">
+                    {contactRequestActionNotice}
+                  </p>
+                )}
+                {reviewActionError !== null && (
+                  <p className="message message-error" role="alert">
+                    {reviewActionError}
+                  </p>
+                )}
+                {reviewActionNotice !== null && (
+                  <p className="message message-success" role="status">
+                    {reviewActionNotice}
+                  </p>
                 )}
 
-              {!isLoadingContactRequests &&
-                contactRequestsError === null &&
-                recentRequests.length > 0 && (
-                  <ul className="tenant-request-list">
-                    {recentRequests.map((contactRequest) => (
-                      <li
-                        className="tenant-request-item"
-                        key={contactRequest.request_id}
+                {!isLoadingContactRequests &&
+                  contactRequestsError === null &&
+                  contactRequests.length === 0 && (
+                    <div className="tenant-empty-state">
+                      <span aria-hidden="true" className="tenant-empty-icon">
+                        ⌂
+                      </span>
+                      <h3>Your next chapter starts with a room</h3>
+                      <p>
+                        When you enquire about a room, you’ll be able to follow
+                        the response right here.
+                      </p>
+                      <AppLink
+                        className="tenant-empty-link"
+                        href="/"
+                        onNavigate={onNavigate}
                       >
-                        <div
-                          aria-hidden="true"
-                          className="tenant-request-symbol"
-                        >
-                          ⌂
-                        </div>
-                        <div className="tenant-request-details">
-                          <AppLink
-                            className="tenant-listing-link"
-                            href={`/listings/${contactRequest.listing_id}`}
-                            onNavigate={onNavigate}
+                        Browse available rooms{" "}
+                        <span aria-hidden="true">→</span>
+                      </AppLink>
+                    </div>
+                  )}
+
+                {!isLoadingContactRequests &&
+                  contactRequestsError === null &&
+                  recentRequests.length > 0 && (
+                    <ul className="tenant-request-list">
+                      {recentRequests.map((contactRequest) => {
+                        const review = reviews.find(
+                          (item) =>
+                            item.contact_request_id ===
+                            contactRequest.request_id,
+                        );
+                        const canWriteReview =
+                          contactRequest.status === "approved" &&
+                          !isLoadingReviews &&
+                          reviewsError === null;
+
+                        return (
+                          <li
+                            className="tenant-request-item"
+                            key={contactRequest.request_id}
                           >
-                            Room listing #{contactRequest.listing_id}
-                          </AppLink>
-                          <time dateTime={contactRequest.requested_at}>
-                            Sent {formatRequestDate(contactRequest.requested_at)}
-                          </time>
-                        </div>
-                        <div className="tenant-request-actions">
-                          <span
-                            className={`tenant-status tenant-status-${contactRequest.status}`}
-                          >
-                            {contactRequest.status}
-                          </span>
-                          {contactRequest.status === "pending" && (
+                            <div
+                              aria-hidden="true"
+                              className="tenant-request-symbol"
+                            >
+                              ⌂
+                            </div>
+                            <div className="tenant-request-content">
+                              <div className="tenant-request-main">
+                                <div className="tenant-request-details">
+                                  <AppLink
+                                    className="tenant-listing-link"
+                                    href={`/listings/${contactRequest.listing_id}`}
+                                    onNavigate={onNavigate}
+                                  >
+                                    Room listing #{contactRequest.listing_id}
+                                  </AppLink>
+                                  <time dateTime={contactRequest.requested_at}>
+                                    Sent {formatDate(contactRequest.requested_at)}
+                                  </time>
+                                </div>
+                                <div className="tenant-request-actions">
+                                  <span
+                                    className={`tenant-status tenant-status-${contactRequest.status}`}
+                                  >
+                                    {contactRequest.status}
+                                  </span>
+                                  {contactRequest.status === "pending" && (
+                                    <button
+                                      className="tenant-cancel-button"
+                                      disabled={updatingRequestId !== null}
+                                      onClick={() =>
+                                        void handleCancelContactRequest(
+                                          contactRequest.request_id,
+                                        )
+                                      }
+                                      type="button"
+                                    >
+                                      {updatingRequestId ===
+                                      contactRequest.request_id
+                                        ? "Cancelling…"
+                                        : "Cancel"}
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+
+                              {contactRequest.status === "approved" &&
+                                isLoadingReviews && (
+                                  <p
+                                    className="tenant-review-muted"
+                                    role="status"
+                                  >
+                                    Checking review status…
+                                  </p>
+                                )}
+                              {contactRequest.status === "approved" &&
+                                reviewsError !== null && (
+                                  <p className="tenant-review-muted" role="alert">
+                                    Reviews could not be checked. Try reloading
+                                    the dashboard before submitting one.
+                                  </p>
+                                )}
+                              {canWriteReview && review !== undefined && (
+                                <div className="tenant-review-summary">
+                                  <span aria-label={`${review.rating} out of 5 stars`}>
+                                    {"★".repeat(review.rating)}
+                                    {"☆".repeat(5 - review.rating)}
+                                  </span>
+                                  <strong>{review.rating} / 5</strong>
+                                  {review.comment !== null && (
+                                    <p>{review.comment}</p>
+                                  )}
+                                </div>
+                              )}
+                              {canWriteReview &&
+                                review === undefined &&
+                                reviewContactRequestId !==
+                                  contactRequest.request_id && (
+                                  <button
+                                    className="tenant-review-button"
+                                    disabled={isSubmittingReview}
+                                    onClick={() => {
+                                      setReviewActionError(null);
+                                      setReviewActionNotice(null);
+                                      setReviewContactRequestId(
+                                        contactRequest.request_id,
+                                      );
+                                    }}
+                                    type="button"
+                                  >
+                                    Write a review
+                                  </button>
+                                )}
+                              {canWriteReview &&
+                                review === undefined &&
+                                reviewContactRequestId ===
+                                  contactRequest.request_id && (
+                                  <form
+                                    className="tenant-review-form"
+                                    onSubmit={(event) => {
+                                      event.preventDefault();
+                                      void handleSubmitReview(
+                                        contactRequest.request_id,
+                                      );
+                                    }}
+                                  >
+                                    <label>
+                                      Rating
+                                      <select
+                                        disabled={isSubmittingReview}
+                                        onChange={(event) =>
+                                          setReviewRating(
+                                            event.currentTarget.value,
+                                          )
+                                        }
+                                        value={reviewRating}
+                                      >
+                                        {[5, 4, 3, 2, 1].map((rating) => (
+                                          <option key={rating} value={rating}>
+                                            {rating} / 5
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </label>
+                                    <label>
+                                      Comment <span>Optional</span>
+                                      <textarea
+                                        maxLength={2000}
+                                        onChange={(event) =>
+                                          setReviewComment(
+                                            event.currentTarget.value,
+                                          )
+                                        }
+                                        rows={3}
+                                        value={reviewComment}
+                                      />
+                                    </label>
+                                    <div className="tenant-review-actions">
+                                      <button
+                                        className="tenant-review-submit"
+                                        disabled={isSubmittingReview}
+                                        type="submit"
+                                      >
+                                        {isSubmittingReview
+                                          ? "Submitting…"
+                                          : "Submit review"}
+                                      </button>
+                                      <button
+                                        className="tenant-review-cancel"
+                                        disabled={isSubmittingReview}
+                                        onClick={() =>
+                                          setReviewContactRequestId(null)
+                                        }
+                                        type="button"
+                                      >
+                                        Cancel
+                                      </button>
+                                    </div>
+                                  </form>
+                                )}
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+              </section>
+
+              <section
+                aria-labelledby="saved-searches-heading"
+                className="tenant-panel tenant-saved-searches"
+              >
+                <div className="tenant-panel-heading">
+                  <div>
+                    <p className="tenant-eyebrow tenant-eyebrow-muted">
+                      YOUR PREFERENCES
+                    </p>
+                    <h2 id="saved-searches-heading">Saved searches</h2>
+                  </div>
+                  <AppLink
+                    className="tenant-panel-link"
+                    href="/"
+                    onNavigate={onNavigate}
+                  >
+                    Find rooms <span aria-hidden="true">→</span>
+                  </AppLink>
+                </div>
+
+                {isLoadingSavedSearches && (
+                  <p className="tenant-inline-state" role="status">
+                    Loading your saved searches…
+                  </p>
+                )}
+                {savedSearchesError !== null && (
+                  <p className="message message-error" role="alert">
+                    {savedSearchesError}
+                  </p>
+                )}
+                {savedSearchActionError !== null && (
+                  <p className="message message-error" role="alert">
+                    {savedSearchActionError}
+                  </p>
+                )}
+                {!isLoadingSavedSearches &&
+                  savedSearchesError === null &&
+                  savedSearches.length === 0 && (
+                    <div className="tenant-saved-empty">
+                      <p>
+                        Save a search from the room browser to quickly revisit
+                        the places and amenities you prefer.
+                      </p>
+                      <AppLink
+                        className="tenant-empty-link"
+                        href="/"
+                        onNavigate={onNavigate}
+                      >
+                        Browse and save a search{" "}
+                        <span aria-hidden="true">→</span>
+                      </AppLink>
+                    </div>
+                  )}
+                {!isLoadingSavedSearches &&
+                  savedSearchesError === null &&
+                  savedSearches.length > 0 && (
+                    <ul className="tenant-saved-search-list">
+                      {savedSearches.map((search) => (
+                        <li key={search.saved_search_id}>
+                          <div>
+                            <strong>{getSavedSearchLabel(search)}</strong>
+                            <time dateTime={search.created_at}>
+                              Saved {formatDate(search.created_at)}
+                            </time>
+                          </div>
+                          <div className="tenant-saved-search-actions">
+                            <button
+                              className="tenant-review-button"
+                              onClick={() =>
+                                onNavigate(getSavedSearchPath(search))
+                              }
+                              type="button"
+                            >
+                              Search again
+                            </button>
                             <button
                               className="tenant-cancel-button"
-                              disabled={updatingRequestId !== null}
+                              disabled={deletingSavedSearchId !== null}
                               onClick={() =>
-                                void handleCancelContactRequest(
-                                  contactRequest.request_id,
+                                void handleDeleteSavedSearch(
+                                  search.saved_search_id,
                                 )
                               }
                               type="button"
                             >
-                              {updatingRequestId === contactRequest.request_id
-                                ? "Cancelling…"
-                                : "Cancel"}
+                              {deletingSavedSearchId === search.saved_search_id
+                                ? "Deleting…"
+                                : "Delete"}
                             </button>
-                          )}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-            </section>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+              </section>
+            </div>
 
             <aside className="tenant-side-column">
               <section
@@ -440,7 +879,9 @@ export default function DashboardPage({
       <section className="profile-card" aria-labelledby="dashboard-heading">
         <p className="eyebrow">Room Rentals</p>
         <h1 id="dashboard-heading">{content.heading}</h1>
-        <p className="intro">Welcome, {profile.full_name}. {content.description}</p>
+        <p className="intro">
+          Welcome, {profile.full_name}. {content.description}
+        </p>
 
         <dl className="profile-list">
           <div>

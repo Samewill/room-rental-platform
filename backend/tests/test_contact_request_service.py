@@ -19,9 +19,16 @@ class ContactRequestServiceTests(unittest.TestCase):
         self.service = ContactRequestService(self.db)
         self.requests = Mock()
         self.service._requests = self.requests
+        self.conversations = Mock()
+        self.service._conversations = self.conversations
         self.service._listings = Mock()
+        self.service._listings.get_by_id.return_value = Mock(landlord_id=8)
 
     def test_create_request_starts_pending_for_public_listing(self) -> None:
+        def add_contact_request(contact_request: ContactRequest) -> None:
+            contact_request.request_id = 5
+
+        self.requests.add.side_effect = add_contact_request
         with patch(
             "app.services.contact_request_service.ListingService"
         ) as listing_service:
@@ -35,7 +42,28 @@ class ContactRequestServiceTests(unittest.TestCase):
         self.assertEqual(result.tenant_id, 6)
         self.assertEqual(result.listing_id, 14)
         self.requests.add.assert_called_once()
+        self.conversations.create_for_contact_request.assert_called_once_with(
+            5,
+            6,
+            8,
+        )
         self.db.commit.assert_called_once()
+
+    def test_create_request_rejects_landlord_own_listing(self) -> None:
+        self.service._listings.get_by_id.return_value = Mock(landlord_id=6)
+        with patch(
+            "app.services.contact_request_service.ListingService"
+        ) as listing_service:
+            listing_service.return_value.get_public_listing.return_value = (
+                object()
+            )
+
+            with self.assertRaises(ContactRequestForbiddenError):
+                self.service.create_request(tenant_id=6, listing_id=14)
+
+        self.requests.add.assert_not_called()
+        self.conversations.create_for_contact_request.assert_not_called()
+        self.db.commit.assert_not_called()
 
     def test_create_request_rejects_non_public_listing(self) -> None:
         with patch(
@@ -47,6 +75,7 @@ class ContactRequestServiceTests(unittest.TestCase):
                 self.service.create_request(tenant_id=6, listing_id=14)
 
         self.requests.add.assert_not_called()
+        self.conversations.create_for_contact_request.assert_not_called()
         self.db.commit.assert_not_called()
 
     def test_create_request_rolls_back_database_failure(self) -> None:

@@ -4,6 +4,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.models.contact_request import ContactRequest
+from app.repositories.conversation_repository import ConversationRepository
 from app.repositories.contact_request_repository import (
     ContactRequestRepository,
 )
@@ -38,6 +39,7 @@ class ContactRequestService:
     def __init__(self, db: Session) -> None:
         self._db = db
         self._requests = ContactRequestRepository(db)
+        self._conversations = ConversationRepository(db)
         self._listings = ListingRepository(db)
 
     def create_request(
@@ -53,6 +55,16 @@ class ContactRequestService:
                 "Listing is not available for contact requests."
             )
 
+        listing = self._listings.get_by_id(listing_id)
+        if listing is None:
+            raise ContactRequestListingUnavailableError(
+                "Listing is not available for contact requests."
+            )
+        if listing.landlord_id == tenant_id:
+            raise ContactRequestForbiddenError(
+                "You cannot contact your own listing.",
+            )
+
         contact_request = ContactRequest(
             listing_id=listing_id,
             tenant_id=tenant_id,
@@ -60,6 +72,11 @@ class ContactRequestService:
         )
         try:
             self._requests.add(contact_request)
+            self._conversations.create_for_contact_request(
+                contact_request.request_id,
+                tenant_id,
+                listing.landlord_id,
+            )
             self._db.commit()
         except SQLAlchemyError:
             self._db.rollback()

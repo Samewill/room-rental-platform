@@ -11,7 +11,6 @@ class ListingServiceTests(unittest.TestCase):
     def setUp(self) -> None:
         self.repository = Mock()
         self.service = ListingService(self.repository)
-        self.today = date(2026, 10, 28)
 
     @staticmethod
     def make_listing(
@@ -35,7 +34,9 @@ class ListingServiceTests(unittest.TestCase):
             photos=[],
         )
 
-    def test_list_returns_only_active_available_approved_listings(self) -> None:
+    def test_list_returns_active_approved_listings_with_future_availability(
+        self,
+    ) -> None:
         approved = self.make_listing(1)
         pending_approval = self.make_listing(2)
         future = self.make_listing(
@@ -56,11 +57,11 @@ class ListingServiceTests(unittest.TestCase):
             4: "approved",
         }
 
-        result = self.service.list_public_listings(as_of=self.today)
+        result = self.service.list_public_listings()
 
-        self.assertEqual([listing.listing_id for listing in result], [1])
+        self.assertEqual([listing.listing_id for listing in result], [1, 3])
         self.repository.get_latest_moderation_decisions.assert_called_once_with(
-            [1, 2],
+            [1, 2, 3],
         )
 
     def test_list_excludes_listings_without_moderation_decisions(self) -> None:
@@ -68,34 +69,46 @@ class ListingServiceTests(unittest.TestCase):
         self.repository.list_all.return_value = [listing]
         self.repository.get_latest_moderation_decisions.return_value = {}
 
-        result = self.service.list_public_listings(as_of=self.today)
+        result = self.service.list_public_listings()
 
         self.assertEqual(result, [])
 
-    def test_list_passes_no_candidates_when_no_listings_are_available(
+    def test_list_passes_no_candidates_when_no_listings_are_active(
         self,
     ) -> None:
-        future = self.make_listing(
-            1,
-            date_available=date(2026, 10, 29),
-        )
-        self.repository.list_all.return_value = [future]
+        inactive = self.make_listing(1, status="draft")
+        self.repository.list_all.return_value = [inactive]
 
-        result = self.service.list_public_listings(as_of=self.today)
+        result = self.service.list_public_listings()
 
         self.assertEqual(result, [])
         self.repository.get_latest_moderation_decisions.assert_called_once_with(
             [],
         )
 
-    def test_get_returns_approved_available_listing(self) -> None:
+    def test_get_returns_approved_listing_with_future_availability(self) -> None:
+        listing = self.make_listing(
+            1,
+            date_available=date(2026, 10, 29),
+        )
+        self.repository.get_by_id.return_value = listing
+        self.repository.get_latest_moderation_decisions.return_value = {
+            1: "approved",
+        }
+
+        result = self.service.get_public_listing(1)
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result.listing_id, 1)
+
+    def test_get_returns_approved_listing(self) -> None:
         listing = self.make_listing(1)
         self.repository.get_by_id.return_value = listing
         self.repository.get_latest_moderation_decisions.return_value = {
             1: "approved",
         }
 
-        result = self.service.get_public_listing(1, as_of=self.today)
+        result = self.service.get_public_listing(1)
 
         self.assertIsNotNone(result)
         self.assertEqual(result.listing_id, 1)
@@ -107,26 +120,14 @@ class ListingServiceTests(unittest.TestCase):
             1: "rejected",
         }
 
-        result = self.service.get_public_listing(1, as_of=self.today)
+        result = self.service.get_public_listing(1)
 
         self.assertIsNone(result)
-
-    def test_get_excludes_future_listing_without_checking_moderation(self) -> None:
-        future = self.make_listing(
-            1,
-            date_available=date(2026, 10, 29),
-        )
-        self.repository.get_by_id.return_value = future
-
-        result = self.service.get_public_listing(1, as_of=self.today)
-
-        self.assertIsNone(result)
-        self.repository.get_latest_moderation_decisions.assert_not_called()
 
     def test_get_returns_none_for_missing_listing(self) -> None:
         self.repository.get_by_id.return_value = None
 
-        result = self.service.get_public_listing(999, as_of=self.today)
+        result = self.service.get_public_listing(999)
 
         self.assertIsNone(result)
         self.repository.get_latest_moderation_decisions.assert_not_called()

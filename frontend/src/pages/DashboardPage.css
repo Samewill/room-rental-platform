@@ -310,6 +310,12 @@
   grid-template-columns: minmax(0, 1.7fr) minmax(250px, 0.8fr);
 }
 
+.tenant-main-column {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+
 .tenant-panel {
   background: #fff;
   border: 1px solid #e6ebe7;
@@ -384,6 +390,18 @@
   min-width: 0;
 }
 
+.tenant-request-content {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.tenant-request-main {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
 .tenant-listing-link {
   color: #263d31;
   font-size: 14px;
@@ -402,6 +420,218 @@
   flex-direction: column;
   gap: 3px;
   justify-content: center;
+}
+
+.tenant-review-button,
+.tenant-review-submit,
+.tenant-review-cancel,
+.tenant-panel-link {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: #176b55;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  gap: 6px;
+  padding: 6px 0;
+  text-decoration: none;
+}
+
+.tenant-review-button:hover,
+.tenant-review-cancel:hover,
+.tenant-panel-link:hover {
+  color: #105a47;
+  text-decoration: underline;
+}
+
+.tenant-review-button:focus-visible,
+.tenant-review-submit:focus-visible,
+.tenant-review-cancel:focus-visible,
+.tenant-panel-link:focus-visible {
+  border-radius: 4px;
+  outline: 3px solid #85b79d;
+  outline-offset: 3px;
+}
+
+.tenant-review-button:disabled,
+.tenant-review-submit:disabled,
+.tenant-review-cancel:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.tenant-review-muted {
+  color: #78867e;
+  font-size: 12px;
+  margin: 10px 0 0;
+}
+
+.tenant-review-summary {
+  background: #f7faf7;
+  border-radius: 8px;
+  color: #526b5b;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 13px;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 10px 12px;
+}
+
+.tenant-review-summary > span {
+  color: #a77728;
+  letter-spacing: 0.08em;
+}
+
+.tenant-review-summary p {
+  color: #66766c;
+  flex-basis: 100%;
+  line-height: 1.5;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.tenant-review-form {
+  background: #f8faf8;
+  border: 1px solid #e6ece7;
+  border-radius: 10px;
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 14px;
+}
+
+.tenant-review-form label {
+  color: #405349;
+  display: grid;
+  font-size: 13px;
+  font-weight: 650;
+  gap: 6px;
+}
+
+.tenant-review-form label > span {
+  color: #87938b;
+  font-size: 11px;
+  font-weight: 450;
+}
+
+.tenant-review-form select,
+.tenant-review-form textarea {
+  background: white;
+  border: 1px solid #dfe6e0;
+  border-radius: 7px;
+  box-sizing: border-box;
+  color: #263d31;
+  font: inherit;
+  font-size: 14px;
+  min-height: 40px;
+  padding: 8px 10px;
+  width: 100%;
+}
+
+.tenant-review-form textarea {
+  resize: vertical;
+}
+
+.tenant-review-form select:focus,
+.tenant-review-form textarea:focus {
+  border-color: #6b947d;
+  outline: 3px solid rgb(84 115 97 / 14%);
+}
+
+.tenant-review-actions,
+.tenant-saved-search-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.tenant-review-submit {
+  background: #176b55;
+  border-radius: 7px;
+  color: #fff;
+  justify-content: center;
+  min-height: 38px;
+  padding: 8px 12px;
+}
+
+.tenant-review-submit:hover:not(:disabled) {
+  background: #105a47;
+}
+
+.tenant-review-cancel,
+.tenant-cancel-button {
+  color: #627268;
+}
+
+.tenant-panel-link {
+  flex: 0 0 auto;
+}
+
+.tenant-saved-empty {
+  background: #f7faf7;
+  border: 1px dashed #d8e3da;
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.tenant-saved-empty p {
+  color: #6c7b72;
+  font-size: 13px;
+  line-height: 1.55;
+  margin: 0 0 8px;
+}
+
+.tenant-saved-search-list {
+  display: grid;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tenant-saved-search-list li {
+  align-items: center;
+  border-top: 1px solid #edf0ed;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  padding: 13px 0;
+}
+
+.tenant-saved-search-list li:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.tenant-saved-search-list li > div:first-child {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.tenant-saved-search-list strong {
+  color: #33493c;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.tenant-saved-search-list time {
+  color: #7a8980;
+  font-size: 11px;
+}
+
+.tenant-saved-search-actions {
+  flex: 0 0 auto;
+  gap: 10px;
+}
+
+.tenant-saved-search-actions .tenant-cancel-button {
+  font-size: 12px;
 }
 
 .tenant-status,
@@ -617,6 +847,10 @@
   .tenant-side-column {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .tenant-request-main {
+    align-items: flex-start;
+  }
 }
 
 @media (max-width: 540px) {
@@ -699,6 +933,10 @@
     gap: 9px;
   }
 
+  .tenant-request-main {
+    align-items: flex-start;
+  }
+
   .tenant-request-symbol {
     height: 34px;
     width: 34px;
@@ -715,6 +953,11 @@
 
   .tenant-side-column {
     grid-template-columns: 1fr;
+  }
+
+  .tenant-saved-search-list li {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .tenant-footer {

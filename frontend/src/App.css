@@ -352,3 +352,196 @@ h1 {
     grid-template-columns: 1fr;
   }
 }
+
+.tenant-dashboard-shell {
+  justify-content: center;
+  max-width: 1440px;
+}
+
+.tenant-dashboard-card {
+  background:
+    radial-gradient(ellipse at top right, rgb(234 247 241 / 65%), transparent 34%),
+    #fff;
+  border-color: #e3ebe5;
+  border-radius: 20px;
+  box-shadow: 0 16px 48px rgb(26 45 76 / 7%);
+  display: grid;
+  gap: 0 28px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: 1120px;
+  padding: clamp(24px, 4vw, 44px);
+}
+
+.tenant-dashboard-header,
+.tenant-dashboard-profile,
+.tenant-dashboard-note,
+.tenant-dashboard-actions {
+  grid-column: 1 / -1;
+}
+
+.tenant-dashboard-header .intro {
+  margin-bottom: 20px;
+}
+
+.tenant-dashboard-profile {
+  background: #f8faf9;
+  border: 1px solid #e8eeea;
+  border-radius: 12px;
+  display: grid;
+  gap: 20px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  margin: 0 0 18px;
+  padding: 0 18px;
+}
+
+.tenant-dashboard-profile div {
+  border-bottom: 0;
+  padding: 17px 0;
+}
+
+.tenant-dashboard-note {
+  border: 1px solid #e5eee8;
+  margin-bottom: 4px;
+}
+
+.tenant-dashboard-section {
+  align-self: start;
+  border: 1px solid #e7ece8;
+  border-radius: 14px;
+  margin-top: 20px;
+  min-width: 0;
+  padding: 20px;
+}
+
+.tenant-dashboard-section h2 {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.tenant-dashboard-list {
+  gap: 10px;
+}
+
+.tenant-dashboard-item {
+  background: #fbfcfb;
+  border-color: #e7ece8;
+  border-radius: 11px;
+  padding: 15px;
+}
+
+.tenant-dashboard-item .tenant-request-listing {
+  color: #233b30;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.request-status {
+  border-radius: 999px;
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 9px;
+  text-transform: capitalize;
+}
+
+.request-status-approved {
+  background: #e7f5ed;
+  color: #176b44;
+}
+
+.request-status-pending {
+  background: #fff4d8;
+  color: #8a5a00;
+}
+
+.request-status-rejected,
+.request-status-cancelled {
+  background: #fcebea;
+  color: #a33b37;
+}
+
+.tenant-dashboard-item .secondary-button,
+.tenant-dashboard-item .primary-button {
+  margin-top: 10px;
+}
+
+.tenant-review-form {
+  border-top: 1px solid #e7ece8;
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 14px;
+}
+
+.tenant-review-form label {
+  color: #344852;
+  display: grid;
+  font-size: 14px;
+  font-weight: 600;
+  gap: 6px;
+}
+
+.tenant-review-form select,
+.tenant-review-form textarea {
+  background: #fff;
+  border: 1px solid #cbd3dd;
+  border-radius: 8px;
+  color: #182230;
+  font: inherit;
+  min-height: 42px;
+  padding: 9px 10px;
+}
+
+.tenant-review-form textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+
+.tenant-dashboard-actions {
+  align-items: center;
+  border-top: 1px solid #e7ece8;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 24px;
+  padding-top: 20px;
+}
+
+.tenant-dashboard-actions > * {
+  text-align: center;
+}
+
+@media (max-width: 760px) {
+  .tenant-dashboard-shell {
+    padding: 24px 16px;
+  }
+
+  .tenant-dashboard-card {
+    gap: 0;
+    grid-template-columns: 1fr;
+  }
+
+  .tenant-dashboard-section {
+    grid-column: 1;
+  }
+
+  .tenant-dashboard-actions {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .tenant-dashboard-card {
+    padding: 24px 18px;
+  }
+
+  .tenant-dashboard-profile {
+    gap: 0 12px;
+    padding: 0 12px;
+  }
+
+  .tenant-dashboard-section {
+    padding: 16px;
+  }
+}

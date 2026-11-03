@@ -102,6 +102,11 @@ def create_contact_request(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Listing not found or unavailable.",
         ) from exc
+    except ContactRequestForbiddenError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc),
+        ) from exc
     except SQLAlchemyError as exc:
         logger.exception("Failed to create contact request")
         raise HTTPException(

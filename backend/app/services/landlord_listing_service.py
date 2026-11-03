@@ -4,7 +4,9 @@ from typing import BinaryIO
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from app.models.amenity import Amenity
 from app.models.listing import Listing
+from app.repositories.amenity_repository import AmenityRepository
 from app.repositories.area_repository import AreaRepository
 from app.repositories.listing_repository import ListingRepository
 from app.schemas.landlord_listing import (
@@ -29,6 +31,10 @@ class ListingAreaNotFoundError(Exception):
     pass
 
 
+class ListingAmenityNotFoundError(Exception):
+    pass
+
+
 class ListingStateError(Exception):
     pass
 
@@ -47,6 +53,7 @@ class LandlordListingService:
         self._db = db
         self._listings = ListingRepository(db)
         self._areas = AreaRepository(db)
+        self._amenities = AmenityRepository(db)
         self._photo_storage = photo_storage or CloudinaryPhotoStorage()
 
     def list_for_landlord(self, landlord_id: int) -> list[ListingResponse]:
@@ -61,10 +68,12 @@ class LandlordListingService:
         changes: ListingCreateRequest,
     ) -> ListingResponse:
         self._require_area(changes.area_id)
+        amenities = self._get_amenities(changes.amenities)
         listing = Listing(
             landlord_id=landlord_id,
             status=self.DRAFT_STATUS,
-            **changes.model_dump(),
+            **changes.model_dump(exclude={"amenities"}),
+            amenities=amenities,
         )
 
         try:
@@ -89,6 +98,8 @@ class LandlordListingService:
         updates = changes.model_dump(exclude_unset=True)
         if "area_id" in updates:
             self._require_area(updates["area_id"])
+        if "amenities" in updates:
+            updates["amenities"] = self._get_amenities(updates["amenities"])
         for field_name, value in updates.items():
             setattr(listing, field_name, value)
         if listing.status in {self.PENDING_STATUS, self.ACTIVE_STATUS}:
@@ -162,6 +173,14 @@ class LandlordListingService:
     def _require_area(self, area_id: int) -> None:
         if self._areas.get_by_id(area_id) is None:
             raise ListingAreaNotFoundError("Area does not exist.")
+
+    def _get_amenities(self, names: list[str]) -> list[Amenity]:
+        amenities = self._amenities.get_by_names(names)
+        if {amenity.name for amenity in amenities} != set(names):
+            raise ListingAmenityNotFoundError(
+                "One or more selected amenities are unavailable.",
+            )
+        return amenities
 
     def _commit(self) -> None:
         try:

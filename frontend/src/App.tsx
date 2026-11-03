@@ -12,6 +12,7 @@ import AppLink from "./components/AppLink";
 import DashboardPage, { type DashboardRole } from "./pages/DashboardPage";
 import AdminReportsPage from "./pages/AdminReportsPage";
 import AdminModerationDashboardPage from "./pages/AdminModerationDashboardPage";
+import ConversationsPage from "./pages/ConversationsPage";
 import LandlordDashboardPage from "./pages/LandlordDashboardPage";
 import ListingDetailsPage from "./pages/ListingDetailsPage";
 import ListingsPage from "./pages/ListingsPage";
@@ -317,9 +318,28 @@ function App() {
     );
   }
 
+  if (
+    pathname === "/conversations" &&
+    profile !== null &&
+    accessToken !== null &&
+    (profile.roles.includes("tenant") || profile.roles.includes("landlord"))
+  ) {
+    return (
+      <ConversationsPage
+        accessToken={accessToken}
+        onNavigate={navigate}
+        onSignOut={handleSignOut}
+        profile={profile}
+      />
+    );
+  }
+
   if (pathname === "/") {
     return (
       <ListingsPage
+        accessToken={
+          profile?.roles.includes("tenant") === true ? accessToken : null
+        }
         isAuthReady={isAuthReady}
         onNavigate={navigate}
         onRetrySessionRestore={retrySessionRestore}
