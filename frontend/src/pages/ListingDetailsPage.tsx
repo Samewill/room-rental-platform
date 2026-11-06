@@ -358,7 +358,12 @@ export default function ListingDetailsPage({
                   </p>
                 )}
                 {contactRequestNotice !== null && (
-                  <p role="status">{contactRequestNotice}</p>
+                  <p role="status">
+                    {contactRequestNotice}{" "}
+                    <AppLink href="/conversations" onNavigate={onNavigate}>
+                      Open messages
+                    </AppLink>
+                  </p>
                 )}
               </section>
             )}

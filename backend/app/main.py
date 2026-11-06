@@ -1,7 +1,10 @@
 import logging
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -24,10 +27,25 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_allowed_origins,
     allow_credentials=False,
-    allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
 )
 app.include_router(api_router)
+
+
+@app.exception_handler(RequestValidationError)
+async def request_validation_error(
+    request: Request,
+    exc: RequestValidationError,
+) -> JSONResponse:
+    errors = [
+        {key: value for key, value in error.items() if key != "input"}
+        for error in exc.errors()
+    ]
+    return JSONResponse(
+        status_code=422,
+        content={"detail": jsonable_encoder(errors)},
+    )
 
 
 @app.get("/health")

@@ -50,6 +50,7 @@ class AuthEndpointTests(unittest.TestCase):
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response.json()["roles"], ["landlord"])
         self.assertNotIn("password_hash", response.json())
+        self.assertNotIn("phone_no", response.json())
         register.assert_called_once()
         self.assertEqual(register.call_args.args[0].role, "landlord")
 
@@ -167,6 +168,7 @@ class AuthEndpointTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["roles"], ["tenant"])
         self.assertNotIn("password_hash", response.json())
+        self.assertNotIn("phone_no", response.json())
 
     def test_profile_update_allows_name_fields_but_rejects_email(self) -> None:
         self.app.dependency_overrides[get_current_user] = lambda: self.user

@@ -19,6 +19,7 @@ from app.models.contact_request import ContactRequest
 from app.models.user import User
 from app.services.contact_request_service import (
     ContactRequestForbiddenError,
+    ContactRequestForbiddenError,
     ContactRequestListingUnavailableError,
     ContactRequestNotFoundError,
     ContactRequestStateError,
@@ -235,6 +236,17 @@ class ContactRequestEndpointTests(unittest.TestCase):
         )
 
         self.assertEqual(response.status_code, 404)
+
+    def test_create_contact_request_maps_own_listing_to_forbidden(
+        self,
+    ) -> None:
+        self.service.create_request.side_effect = ContactRequestForbiddenError(
+            "You cannot contact your own listing.",
+        )
+
+        response = self.client.post("/api/v1/listings/14/contact-requests")
+
+        self.assertEqual(response.status_code, 403)
 
     def test_create_contact_request_returns_service_unavailable_on_database_error(
         self,

@@ -342,7 +342,7 @@ export default function ListingsPage({
               Find a room to call home
             </h1>
             <p style={{ color: "#596579", margin: 0 }}>
-              Browse rooms currently available for rent.
+              Browse rooms available now or soon.
             </p>
           </div>
           <nav

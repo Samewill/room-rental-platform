@@ -19,7 +19,6 @@ class UserResponse(BaseModel):
 
     user_id: int
     full_name: str = Field(max_length=150)
-    phone_no: str = Field(max_length=20)
     email: str = Field(max_length=255)
     business_name: str | None = Field(default=None, max_length=150)
     created_at: datetime

@@ -1,5 +1,3 @@
-from datetime import date
-
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -40,16 +38,8 @@ class ListingModerationService:
             for listing in self._listings.list_pending_listings()
         ]
 
-    def list_published_listings(
-        self,
-        as_of: date | None = None,
-    ) -> list[ListingResponse]:
-        today = as_of or date.today()
-        candidates = [
-            listing
-            for listing in self._listings.list_active_listings()
-            if listing.date_available <= today
-        ]
+    def list_published_listings(self) -> list[ListingResponse]:
+        candidates = self._listings.list_active_listings()
         latest_decisions = self._listings.get_latest_moderation_decisions(
             [listing.listing_id for listing in candidates]
         )

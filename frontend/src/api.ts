@@ -24,7 +24,6 @@ export interface LoginRequest {
 export interface UserProfile {
   user_id: number;
   full_name: string;
-  phone_no: string;
   email: string;
   business_name: string | null;
   created_at: string;
@@ -82,6 +81,29 @@ export interface ContactRequest {
   listing_id: number;
   status: "pending" | "approved" | "rejected" | "cancelled";
   requested_at: string;
+}
+
+export interface Conversation {
+  conversation_id: number;
+  contact_request_id: number;
+  created_at: string;
+}
+
+export type MessageStatus = "sent" | "read";
+
+export interface ConversationMessage {
+  message_id: number;
+  conversation_id: number;
+  sender_id: number;
+  content: string;
+  status: MessageStatus;
+  sent_at: string;
+  read_at: string | null;
+  whatsapp_delivery_status: "sent" | "failed" | null;
+}
+
+export interface WhatsAppStatus {
+  enabled: boolean;
 }
 
 export type SavedSearchRoomType =
@@ -289,6 +311,130 @@ export function respondToContactRequest(
     },
     body: JSON.stringify({ status }),
   });
+}
+
+export function getMyConversations(
+  accessToken: string,
+): Promise<Conversation[]> {
+  return requestJson<Conversation[]>("/api/v1/users/me/conversations", {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+}
+
+export function getConversationMessages(
+  accessToken: string,
+  conversationId: number,
+): Promise<ConversationMessage[]> {
+  return requestJson<ConversationMessage[]>(
+    `/api/v1/conversations/${conversationId}/messages`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
+  );
+}
+
+export function sendConversationMessage(
+  accessToken: string,
+  conversationId: number,
+  content: string,
+): Promise<ConversationMessage> {
+  return requestJson<ConversationMessage>(
+    `/api/v1/conversations/${conversationId}/messages`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ content }),
+    },
+  );
+}
+
+export function markConversationMessageRead(
+  accessToken: string,
+  conversationId: number,
+  messageId: number,
+): Promise<ConversationMessage> {
+  return requestJson<ConversationMessage>(
+    `/api/v1/conversations/${conversationId}/messages/${messageId}/read`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
+  );
+}
+
+export function getWhatsAppStatus(
+  accessToken: string,
+): Promise<WhatsAppStatus> {
+  return requestJson<WhatsAppStatus>("/api/v1/users/me/whatsapp", {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+}
+
+export function startWhatsAppVerification(
+  accessToken: string,
+  phoneNumber: string,
+): Promise<{ detail: string }> {
+  return requestJson<{ detail: string }>(
+    "/api/v1/users/me/whatsapp/verification",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ phone_number: phoneNumber, consent: true }),
+    },
+  );
+}
+
+export function confirmWhatsAppVerification(
+  accessToken: string,
+  code: string,
+): Promise<WhatsAppStatus> {
+  return requestJson<WhatsAppStatus>(
+    "/api/v1/users/me/whatsapp/verification/confirm",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ code }),
+    },
+  );
+}
+
+export function unlinkWhatsApp(accessToken: string): Promise<WhatsAppStatus> {
+  return requestJson<WhatsAppStatus>("/api/v1/users/me/whatsapp", {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+}
+
+export function retryWhatsAppDelivery(
+  accessToken: string,
+  conversationId: number,
+  messageId: number,
+): Promise<ConversationMessage> {
+  return requestJson<ConversationMessage>(
+    `/api/v1/conversations/${conversationId}/messages/${messageId}/whatsapp/retry`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
+  );
 }
 
 export function createSavedSearch(

@@ -360,13 +360,22 @@ export default function LandlordDashboardPage({
             <h1>Your landlord dashboard</h1>
             <p className="intro">Welcome, {profile.full_name}.</p>
           </div>
-          <button
-            className="secondary-button landlord-signout"
-            onClick={onSignOut}
-            type="button"
-          >
-            Sign out
-          </button>
+          <nav aria-label="Landlord navigation" className="landlord-header-actions">
+            <AppLink
+              className="secondary-button landlord-messages-link"
+              href="/conversations"
+              onNavigate={onNavigate}
+            >
+              Messages
+            </AppLink>
+            <button
+              className="secondary-button landlord-signout"
+              onClick={onSignOut}
+              type="button"
+            >
+              Sign out
+            </button>
+          </nav>
         </header>
 
         <p className="landlord-moderation-note">

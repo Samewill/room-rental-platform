@@ -10,3 +10,4 @@ email-validator
 PyJWT[crypto]
 cloudinary
 python-multipart
+cryptography

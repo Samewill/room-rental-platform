@@ -19,6 +19,16 @@ class Settings(BaseSettings):
     cloudinary_cloud_name: str | None = None
     cloudinary_api_key: str | None = None
     cloudinary_api_secret: SecretStr | None = None
+    whatsapp_access_token: SecretStr | None = None
+    whatsapp_phone_number_id: str | None = None
+    whatsapp_app_secret: SecretStr | None = None
+    whatsapp_verify_token: SecretStr | None = None
+    whatsapp_phone_encryption_key: SecretStr | None = None
+    whatsapp_phone_lookup_key: SecretStr | None = None
+    whatsapp_graph_api_version: str = "v23.0"
+    whatsapp_template_language: str = "en_US"
+    whatsapp_verification_template_name: str = "rental_phone_verification"
+    whatsapp_message_template_name: str = "rental_message_notification"
 
     model_config = SettingsConfigDict(
         env_file=BACKEND_DIR / ".env",

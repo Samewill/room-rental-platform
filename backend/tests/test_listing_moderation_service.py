@@ -52,7 +52,7 @@ class ListingModerationServiceTests(unittest.TestCase):
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0].listing_id, 12)
 
-    def test_lists_only_published_listings_with_approved_decisions(
+    def test_lists_future_published_listings_with_approved_decisions(
         self,
     ) -> None:
         listing = self.make_listing(status="active")
@@ -72,14 +72,15 @@ class ListingModerationServiceTests(unittest.TestCase):
         ]
         self.repository.get_latest_moderation_decisions.return_value = {
             12: "approved",
+            13: "approved",
             14: "rejected",
         }
 
-        result = self.service.list_published_listings(as_of=date(2026, 11, 1))
+        result = self.service.list_published_listings()
 
-        self.assertEqual([item.listing_id for item in result], [12])
+        self.assertEqual([item.listing_id for item in result], [12, 13])
         self.repository.get_latest_moderation_decisions.assert_called_once_with(
-            [12, 14],
+            [12, 13, 14],
         )
 
     def test_gets_history_for_existing_listing(self) -> None:

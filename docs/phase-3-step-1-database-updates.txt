@@ -43,7 +43,7 @@ Phase 3, Step 2 progress:
 - Added backend/app/repositories/listing_repository.py with listing lookup by ID and stable newest-first listing retrieval.
 - Repository methods perform data access only; publication and moderation eligibility must be enforced by the service layer.
 - Validation: Pylance found no syntax errors; SQLite integration checks verified newest-first ordering, deterministic tie-breaking, lookup by ID, and missing-ID behavior; Python compilation passed.
-- Added backend/app/services/listing_service.py. Public listings require status active, date_available on or before the requested date, and the latest moderation decision to be approved. Listings without an approval decision are excluded.
+- Added backend/app/services/listing_service.py. Public listings require active status and a latest moderation decision of approved. Future availability dates are allowed so approved listings can be advertised before move-in; the availability date remains visible to renters. Listings without an approval decision are excluded.
 - Added a repository query for each requested listing set to retrieve the latest moderation decision, ordered by decision time and moderation ID.
 - Validation: Pylance found no syntax errors or service diagnostics; SQLite integration checks verified published status, availability date, newest moderation outcome, missing decisions, and detail eligibility; Python compilation passed.
 - Added GET /api/v1/listings and GET /api/v1/listings/{listing_id}, wired through the v1 API router. Missing or non-public listings return 404; database query errors are logged and return 503.
