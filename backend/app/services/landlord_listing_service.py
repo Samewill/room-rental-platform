@@ -13,7 +13,7 @@ from app.schemas.landlord_listing import (
     ListingCreateRequest,
     ListingUpdateRequest,
 )
-from app.schemas.listing import ListingResponse
+from app.schemas.listing import LandlordListingResponse
 from app.services.photo_storage import (
     CloudinaryPhotoStorage,
     PhotoStorageError,
@@ -56,9 +56,12 @@ class LandlordListingService:
         self._amenities = AmenityRepository(db)
         self._photo_storage = photo_storage or CloudinaryPhotoStorage()
 
-    def list_for_landlord(self, landlord_id: int) -> list[ListingResponse]:
+    def list_for_landlord(
+        self,
+        landlord_id: int,
+    ) -> list[LandlordListingResponse]:
         return [
-            ListingResponse.model_validate(listing)
+            LandlordListingResponse.model_validate(listing)
             for listing in self._listings.list_for_landlord(landlord_id)
         ]
 
@@ -66,7 +69,9 @@ class LandlordListingService:
         self,
         landlord_id: int,
         changes: ListingCreateRequest,
-    ) -> ListingResponse:
+        *,
+        commit: bool = True,
+    ) -> LandlordListingResponse:
         self._require_area(changes.area_id)
         amenities = self._get_amenities(changes.amenities)
         listing = Listing(
@@ -82,15 +87,16 @@ class LandlordListingService:
             self._db.rollback()
             raise
 
-        self._commit()
-        return ListingResponse.model_validate(listing)
+        if commit:
+            self._commit()
+        return LandlordListingResponse.model_validate(listing)
 
     def update_listing(
         self,
         landlord_id: int,
         listing_id: int,
         changes: ListingUpdateRequest,
-    ) -> ListingResponse:
+    ) -> LandlordListingResponse:
         listing = self._get_owned(landlord_id, listing_id)
         if listing.status == self.CLOSED_STATUS:
             raise ListingStateError("Closed listings cannot be edited.")
@@ -100,22 +106,27 @@ class LandlordListingService:
             self._require_area(updates["area_id"])
         if "amenities" in updates:
             updates["amenities"] = self._get_amenities(updates["amenities"])
+        if updates.get("google_place_id") is not None:
+            updates["latitude"] = None
+            updates["longitude"] = None
+        elif {"latitude", "longitude"} & updates.keys():
+            updates["google_place_id"] = None
         for field_name, value in updates.items():
             setattr(listing, field_name, value)
         if listing.status in {self.PENDING_STATUS, self.ACTIVE_STATUS}:
             listing.status = self.DRAFT_STATUS
 
         self._commit()
-        return ListingResponse.model_validate(listing)
+        return LandlordListingResponse.model_validate(listing)
 
     def submit_listing(
         self,
         landlord_id: int,
         listing_id: int,
-    ) -> ListingResponse:
+    ) -> LandlordListingResponse:
         listing = self._get_owned(landlord_id, listing_id)
         if listing.status == self.PENDING_STATUS:
-            return ListingResponse.model_validate(listing)
+            return LandlordListingResponse.model_validate(listing)
         if listing.status != self.DRAFT_STATUS:
             raise ListingStateError(
                 "Only draft listings can be submitted for review.",
@@ -123,25 +134,25 @@ class LandlordListingService:
 
         listing.status = self.PENDING_STATUS
         self._commit()
-        return ListingResponse.model_validate(listing)
+        return LandlordListingResponse.model_validate(listing)
 
     def withdraw_listing(
         self,
         landlord_id: int,
         listing_id: int,
-    ) -> ListingResponse:
+    ) -> LandlordListingResponse:
         listing = self._get_owned(landlord_id, listing_id)
         if listing.status != self.CLOSED_STATUS:
             listing.status = self.CLOSED_STATUS
             self._commit()
-        return ListingResponse.model_validate(listing)
+        return LandlordListingResponse.model_validate(listing)
 
     def upload_photo(
         self,
         landlord_id: int,
         listing_id: int,
         image: BinaryIO,
-    ) -> ListingResponse:
+    ) -> LandlordListingResponse:
         listing = self._get_owned(landlord_id, listing_id)
         if listing.status == self.CLOSED_STATUS:
             raise ListingStateError("Closed listings cannot be changed.")
@@ -162,7 +173,7 @@ class LandlordListingService:
             self._cleanup_uploaded_photo(stored_photo.public_id)
             raise
 
-        return ListingResponse.model_validate(listing)
+        return LandlordListingResponse.model_validate(listing)
 
     def _get_owned(self, landlord_id: int, listing_id: int) -> Listing:
         listing = self._listings.get_owned(listing_id, landlord_id)

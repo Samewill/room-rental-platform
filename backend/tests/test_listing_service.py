@@ -10,7 +10,8 @@ from app.services.listing_service import ListingService
 class ListingServiceTests(unittest.TestCase):
     def setUp(self) -> None:
         self.repository = Mock()
-        self.service = ListingService(self.repository)
+        self.google_places = Mock()
+        self.service = ListingService(self.repository, self.google_places)
 
     @staticmethod
     def make_listing(
@@ -28,6 +29,9 @@ class ListingServiceTests(unittest.TestCase):
             monthly_rent=Decimal("4200.00"),
             deposit_amount=Decimal("4200.00"),
             address="Test address",
+            latitude=None,
+            longitude=None,
+            google_place_id=None,
             date_available=date_available,
             status=status,
             created_at=datetime(2026, 10, 1),
@@ -112,6 +116,89 @@ class ListingServiceTests(unittest.TestCase):
 
         self.assertIsNotNone(result)
         self.assertEqual(result.listing_id, 1)
+
+    def test_public_coordinates_are_rounded_before_response(self) -> None:
+        listing = self.make_listing(1)
+        listing.latitude = -26.204167
+        listing.longitude = 28.047305
+        self.repository.get_by_id.return_value = listing
+        self.repository.get_latest_moderation_decisions.return_value = {
+            1: "approved",
+        }
+
+        result = self.service.get_public_listing(1)
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result.approximate_latitude, -26.2)
+        self.assertEqual(result.approximate_longitude, 28.05)
+        self.assertFalse(hasattr(result, "latitude"))
+        self.assertFalse(hasattr(result, "longitude"))
+
+    def test_public_response_without_coordinates_has_no_map_location(
+        self,
+    ) -> None:
+        listing = self.make_listing(1)
+        self.repository.get_by_id.return_value = listing
+        self.repository.get_latest_moderation_decisions.return_value = {
+            1: "approved",
+        }
+
+        result = self.service.get_public_listing(1)
+
+        self.assertFalse(result.has_map_location)
+        self.assertIsNone(result.approximate_latitude)
+        self.assertIsNone(result.approximate_longitude)
+
+    def test_google_place_location_is_resolved_and_rounded_on_demand(self) -> None:
+        listing = self.make_listing(1)
+        listing.google_place_id = "google-place-id"
+        self.repository.get_by_id.return_value = listing
+        self.repository.get_latest_moderation_decisions.return_value = {
+            1: "approved",
+        }
+        self.google_places.get_location.return_value = (
+            -26.204167,
+            28.047305,
+        )
+
+        result = self.service.get_public_listing_location(1)
+
+        self.assertEqual(result.approximate_latitude, -26.2)
+        self.assertEqual(result.approximate_longitude, 28.05)
+        self.google_places.get_location.assert_called_once_with(
+            "google-place-id",
+        )
+        self.assertIsNone(listing.latitude)
+        self.assertIsNone(listing.longitude)
+
+    def test_google_place_location_is_not_resolved_for_unapproved_listing(
+        self,
+    ) -> None:
+        listing = self.make_listing(1)
+        listing.google_place_id = "google-place-id"
+        self.repository.get_by_id.return_value = listing
+        self.repository.get_latest_moderation_decisions.return_value = {
+            1: "rejected",
+        }
+
+        self.assertIsNone(self.service.get_public_listing_location(1))
+        self.google_places.get_location.assert_not_called()
+
+    def test_public_listing_signals_google_map_without_exposing_place_id(
+        self,
+    ) -> None:
+        listing = self.make_listing(1)
+        listing.google_place_id = "google-place-id"
+        self.repository.get_by_id.return_value = listing
+        self.repository.get_latest_moderation_decisions.return_value = {
+            1: "approved",
+        }
+
+        result = self.service.get_public_listing(1)
+
+        self.assertTrue(result.has_map_location)
+        self.assertFalse(hasattr(result, "google_place_id"))
+        self.assertIsNone(result.approximate_latitude)
 
     def test_get_excludes_unapproved_listing(self) -> None:
         listing = self.make_listing(1)

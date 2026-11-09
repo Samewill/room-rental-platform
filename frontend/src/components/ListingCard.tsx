@@ -97,7 +97,7 @@ export default function ListingCard({
           {listing.address}
         </p>
         <p style={{ color: "#596579", margin: "0 0 6px" }}>
-          Area #{listing.area_id}
+          {listing.area_name ?? `Area #${listing.area_id}`}
         </p>
         <p style={{ color: "#596579", margin: 0 }}>
           {formatAvailability(listing.date_available)}

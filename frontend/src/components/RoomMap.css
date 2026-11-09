@@ -1,0 +1,58 @@
+.room-map {
+  margin-top: 20px;
+}
+
+.room-map-canvas {
+  border: 1px solid #d6dee7;
+  border-radius: 12px;
+  height: 320px;
+  overflow: hidden;
+  width: 100%;
+}
+
+.room-map-privacy-note {
+  color: #596579;
+  font-size: 0.9rem;
+  margin: 10px 0 0;
+}
+
+.room-map-configuration {
+  background: #fff7e8;
+  border: 1px solid #ead4a6;
+  border-radius: 8px;
+  color: #694d13;
+  margin: 16px 0;
+  padding: 12px;
+}
+
+.google-address-search {
+  display: grid;
+  gap: 7px;
+  position: relative;
+  z-index: 2;
+}
+
+.google-address-autocomplete {
+  display: block;
+  width: 100%;
+}
+
+.google-address-search-input {
+  width: 100%;
+}
+
+.google-address-search > small {
+  color: #748397;
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.google-address-search > .address-search-error {
+  color: #8d392f;
+}
+
+@media (max-width: 600px) {
+  .room-map-canvas {
+    height: 260px;
+  }
+}

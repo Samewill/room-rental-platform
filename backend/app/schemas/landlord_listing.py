@@ -9,6 +9,7 @@ from pydantic import (
     StringConstraints,
     model_validator,
 )
+
 from app.schemas.amenity import AmenityName
 
 
@@ -50,8 +51,35 @@ class ListingCreateRequest(BaseModel):
     monthly_rent: MonthlyRent
     deposit_amount: DepositAmount
     address: ListingAddress
+    google_place_id: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=512,
+    )
+    latitude: float | None = Field(
+        default=None,
+        ge=-90,
+        le=90,
+        allow_inf_nan=False,
+    )
+    longitude: float | None = Field(
+        default=None,
+        ge=-180,
+        le=180,
+        allow_inf_nan=False,
+    )
     date_available: date
     amenities: list[AmenityName] = Field(default_factory=list, max_length=10)
+
+    @model_validator(mode="after")
+    def validate_coordinates(self) -> "ListingCreateRequest":
+        if (self.latitude is None) != (self.longitude is None):
+            raise ValueError("Latitude and longitude must be provided together.")
+        if self.google_place_id is not None and self.latitude is not None:
+            raise ValueError(
+                "Google Place IDs cannot be stored with coordinates.",
+            )
+        return self
 
 
 class ListingUpdateRequest(BaseModel):
@@ -64,6 +92,23 @@ class ListingUpdateRequest(BaseModel):
     monthly_rent: MonthlyRent | None = None
     deposit_amount: DepositAmount | None = None
     address: ListingAddress | None = None
+    google_place_id: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=512,
+    )
+    latitude: float | None = Field(
+        default=None,
+        ge=-90,
+        le=90,
+        allow_inf_nan=False,
+    )
+    longitude: float | None = Field(
+        default=None,
+        ge=-180,
+        le=180,
+        allow_inf_nan=False,
+    )
     date_available: date | None = None
     amenities: list[AmenityName] | None = Field(default=None, max_length=10)
 
@@ -71,8 +116,20 @@ class ListingUpdateRequest(BaseModel):
     def validate_changes(self) -> "ListingUpdateRequest":
         if not self.model_fields_set:
             raise ValueError("Provide at least one listing field to update.")
+        coordinate_fields = {"latitude", "longitude"}
+        supplied_coordinates = coordinate_fields & self.model_fields_set
+        if supplied_coordinates and supplied_coordinates != coordinate_fields:
+            raise ValueError("Latitude and longitude must be updated together.")
+        if (self.latitude is None) != (self.longitude is None):
+            raise ValueError("Latitude and longitude must be provided together.")
+        if self.google_place_id is not None and self.latitude is not None:
+            raise ValueError(
+                "Google Place IDs cannot be stored with coordinates.",
+            )
         if any(
             getattr(self, field_name) is None
+            and field_name
+            not in coordinate_fields | {"google_place_id"}
             for field_name in self.model_fields_set
         ):
             raise ValueError("Listing fields cannot be null.")

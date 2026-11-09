@@ -5,8 +5,10 @@ from decimal import Decimal
 
 from sqlalchemy import (
     BigInteger,
+    CheckConstraint,
     Date,
     DateTime,
+    Float,
     ForeignKey,
     Identity,
     Numeric,
@@ -18,11 +20,32 @@ from sqlalchemy.dialects.postgresql import ENUM
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+from app.models.area import Area
 from app.models.amenity import Amenity, listing_amenities
 
 
 class Listing(Base):
     __tablename__ = "listings"
+    __table_args__ = (
+        CheckConstraint(
+            "(latitude IS NULL AND longitude IS NULL) OR "
+            "(latitude IS NOT NULL AND longitude IS NOT NULL)",
+            name="listings_coordinates_pair_check",
+        ),
+        CheckConstraint(
+            "latitude IS NULL OR latitude BETWEEN -90 AND 90",
+            name="listings_latitude_range_check",
+        ),
+        CheckConstraint(
+            "longitude IS NULL OR longitude BETWEEN -180 AND 180",
+            name="listings_longitude_range_check",
+        ),
+        CheckConstraint(
+            "google_place_id IS NULL OR "
+            "(latitude IS NULL AND longitude IS NULL)",
+            name="listings_google_place_coordinates_check",
+        ),
+    )
 
     listing_id: Mapped[int] = mapped_column(
         BigInteger,
@@ -39,6 +62,7 @@ class Listing(Base):
         ForeignKey("areas.area_id", name="listings_area_id_fkey"),
         nullable=False,
     )
+    area: Mapped[Area] = relationship(lazy="joined")
     title: Mapped[str] = mapped_column(String(150), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     room_type: Mapped[str] = mapped_column(
@@ -61,6 +85,12 @@ class Listing(Base):
         nullable=False,
     )
     address: Mapped[str] = mapped_column(String(255), nullable=False)
+    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    google_place_id: Mapped[str | None] = mapped_column(
+        String(512),
+        nullable=True,
+    )
     date_available: Mapped[date] = mapped_column(Date, nullable=False)
     status: Mapped[str] = mapped_column(
         ENUM(
