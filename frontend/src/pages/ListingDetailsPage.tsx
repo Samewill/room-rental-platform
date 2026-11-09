@@ -1,7 +1,13 @@
 import { useEffect, useState } from "react";
 
-import { ApiError, buildApiUrl, createContactRequest } from "../api";
+import {
+  ApiError,
+  buildApiUrl,
+  createContactRequest,
+  getPublicListingMapLocation,
+} from "../api";
 import AppLink from "../components/AppLink";
+import RoomMap from "../components/RoomMap";
 import type { Listing } from "../components/ListingCard";
 
 type ListingDetailsPageProps = {
@@ -26,6 +32,9 @@ function isListing(value: unknown): value is Listing {
   return (
     typeof listing.listing_id === "number" &&
     typeof listing.area_id === "number" &&
+    (listing.area_name === undefined ||
+      listing.area_name === null ||
+      typeof listing.area_name === "string") &&
     typeof listing.title === "string" &&
     typeof listing.description === "string" &&
     typeof listing.room_type === "string" &&
@@ -37,6 +46,16 @@ function isListing(value: unknown): value is Listing {
     typeof listing.date_available === "string" &&
     typeof listing.status === "string" &&
     typeof listing.created_at === "string" &&
+    (listing.has_map_location === undefined ||
+      typeof listing.has_map_location === "boolean") &&
+    (listing.approximate_latitude === undefined ||
+      listing.approximate_latitude === null ||
+      (typeof listing.approximate_latitude === "number" &&
+        Number.isFinite(listing.approximate_latitude))) &&
+    (listing.approximate_longitude === undefined ||
+      listing.approximate_longitude === null ||
+      (typeof listing.approximate_longitude === "number" &&
+        Number.isFinite(listing.approximate_longitude))) &&
     Array.isArray(listing.amenities) &&
     listing.amenities.every((amenity) => typeof amenity === "string") &&
     Array.isArray(listing.photos) &&
@@ -85,6 +104,12 @@ export default function ListingDetailsPage({
   sessionRestoreError,
 }: ListingDetailsPageProps) {
   const [listing, setListing] = useState<Listing | null>(null);
+  const [publicMapPoint, setPublicMapPoint] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
+  const [mapLocationError, setMapLocationError] = useState<string | null>(null);
+  const [isLoadingMapLocation, setIsLoadingMapLocation] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [contactRequestError, setContactRequestError] = useState<string | null>(
@@ -124,11 +149,14 @@ export default function ListingDetailsPage({
     const controller = new AbortController();
 
     async function loadListing(): Promise<void> {
+      setPublicMapPoint(null);
+      setMapLocationError(null);
+      setIsLoadingMapLocation(false);
       try {
         const response = await fetch(
           buildApiUrl(`/api/v1/listings/${listingId}`),
           {
-          signal: controller.signal,
+            signal: controller.signal,
           },
         );
         if (response.status === 404) {
@@ -145,6 +173,39 @@ export default function ListingDetailsPage({
         }
 
         setListing(payload);
+        if (
+          typeof payload.approximate_latitude === "number" &&
+          typeof payload.approximate_longitude === "number"
+        ) {
+          setPublicMapPoint({
+            latitude: payload.approximate_latitude,
+            longitude: payload.approximate_longitude,
+          });
+        } else if (payload.has_map_location === true) {
+          setIsLoadingMapLocation(true);
+          try {
+            const location = await getPublicListingMapLocation(
+              listingId,
+              controller.signal,
+            );
+            setPublicMapPoint({
+              latitude: location.approximate_latitude,
+              longitude: location.approximate_longitude,
+            });
+          } catch (locationError: unknown) {
+            if (!controller.signal.aborted) {
+              setMapLocationError(
+                locationError instanceof Error
+                  ? locationError.message
+                  : "The map location could not be loaded.",
+              );
+            }
+          } finally {
+            if (!controller.signal.aborted) {
+              setIsLoadingMapLocation(false);
+            }
+          }
+        }
       } catch (requestError) {
         if (controller.signal.aborted) {
           return;
@@ -306,8 +367,10 @@ export default function ListingDetailsPage({
                 <dd style={{ margin: "4px 0 0" }}>{listing.address}</dd>
               </div>
               <div>
-                <dt style={{ color: "#596579" }}>Area ID</dt>
-                <dd style={{ margin: "4px 0 0" }}>{listing.area_id}</dd>
+                <dt style={{ color: "#596579" }}>Area</dt>
+                <dd style={{ margin: "4px 0 0" }}>
+                  {listing.area_name ?? `Area #${listing.area_id}`}
+                </dd>
               </div>
               <div>
                 <dt style={{ color: "#596579" }}>Available from</dt>
@@ -324,6 +387,24 @@ export default function ListingDetailsPage({
                 </div>
               )}
             </dl>
+            <section aria-label="Room location" style={{ marginTop: 28 }}>
+              <h2 style={{ fontSize: 20, marginBottom: 8 }}>Room location</h2>
+              {publicMapPoint !== null ? (
+                <RoomMap
+                  approximate
+                  label="Approximate room location"
+                  point={publicMapPoint}
+                />
+              ) : isLoadingMapLocation ? (
+                <p role="status">Loading approximate map location…</p>
+              ) : mapLocationError !== null ? (
+                <p role="alert">{mapLocationError}</p>
+              ) : (
+                <p style={{ color: "#596579" }}>
+                  The landlord has not added a map location.
+                </p>
+              )}
+            </section>
             {isAuthReady && (
               <section
                 aria-label="Contact request"

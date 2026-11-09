@@ -1,6 +1,7 @@
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from app.repositories.assistant_repository import AssistantRepository
 from app.models.listing import Listing
 from app.models.listing_moderation import ListingModeration
 from app.repositories.listing_repository import ListingRepository
@@ -31,6 +32,7 @@ class ListingModerationService:
     def __init__(self, db: Session) -> None:
         self._db = db
         self._listings = ListingRepository(db)
+        self._assistant = AssistantRepository(db)
 
     def list_pending_listings(self) -> list[ListingResponse]:
         return [
@@ -136,6 +138,17 @@ class ListingModerationService:
                 reason,
             )
             listing.status = new_status
+            if decision in {
+                self.APPROVED_DECISION,
+                self.REJECTED_DECISION,
+            }:
+                self._assistant.add_listing_moderation_notification(
+                    listing.landlord_id,
+                    listing.listing_id,
+                    listing.title,
+                    decision,
+                    reason,
+                )
             self._db.commit()
         except SQLAlchemyError:
             self._db.rollback()

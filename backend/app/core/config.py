@@ -29,6 +29,18 @@ class Settings(BaseSettings):
     whatsapp_template_language: str = "en_US"
     whatsapp_verification_template_name: str = "rental_phone_verification"
     whatsapp_message_template_name: str = "rental_message_notification"
+    groq_api_key: SecretStr | None = None
+    groq_model: str = "llama-3.3-70b-versatile"
+    groq_max_tokens: int = Field(default=1024, gt=0)
+    google_maps_server_api_key: SecretStr | None = None
+    inception_api_key: SecretStr | None = None
+    inception_base_url: str = "https://api.inceptionlabs.ai/v1"
+    inception_model: str = "mercury-3"
+    inception_max_tokens: int = Field(default=1024, gt=0)
+    inception_max_retries: int = Field(default=2, ge=0)
+    inception_backoff_base_seconds: float = Field(default=1, gt=0)
+    inception_backoff_max_seconds: float = Field(default=8, gt=0)
+    llm_call_timeout_seconds: float = Field(default=20, gt=0)
 
     model_config = SettingsConfigDict(
         env_file=BACKEND_DIR / ".env",

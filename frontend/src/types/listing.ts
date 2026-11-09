@@ -16,6 +16,7 @@ export type ListingModerationRecord = {
 export type Listing = {
   listing_id: number;
   area_id: number;
+  area_name?: string | null;
   title: string;
   description: string;
   room_type: string;
@@ -25,6 +26,12 @@ export type Listing = {
   date_available: string;
   status: string;
   created_at: string;
+  google_place_id?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  approximate_latitude?: number | null;
+  approximate_longitude?: number | null;
+  has_map_location?: boolean;
   photos: ListingPhoto[];
   amenities: string[];
 };
@@ -51,6 +58,9 @@ export type ListingCreateRequest = {
   monthly_rent: string;
   deposit_amount: string;
   address: string;
+  google_place_id?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   date_available: string;
   amenities?: string[];
 };

@@ -19,8 +19,10 @@ class ListingModerationServiceTests(unittest.TestCase):
     def setUp(self) -> None:
         self.db = Mock()
         self.repository = Mock()
+        self.assistant_repository = Mock()
         self.service = ListingModerationService(self.db)
         self.service._listings = self.repository
+        self.service._assistant = self.assistant_repository
 
     @staticmethod
     def make_listing(
@@ -117,7 +119,27 @@ class ListingModerationServiceTests(unittest.TestCase):
             "approved",
             None,
         )
+        self.assistant_repository.add_listing_moderation_notification.assert_called_once_with(
+            8,
+            12,
+            "A room",
+            "approved",
+            None,
+        )
         self.db.commit.assert_called_once()
+
+    def test_rejection_notifies_landlord_with_reason(self) -> None:
+        self.repository.get_by_id.return_value = self.make_listing()
+
+        self.service.reject_listing(12, 4, "Missing details")
+
+        self.assistant_repository.add_listing_moderation_notification.assert_called_once_with(
+            8,
+            12,
+            "A room",
+            "rejected",
+            "Missing details",
+        )
 
     def test_approval_trims_optional_reason(self) -> None:
         listing = self.make_listing()
@@ -214,6 +236,7 @@ class ListingModerationServiceTests(unittest.TestCase):
 
         self.db.rollback.assert_called_once()
         self.repository.add_moderation_decision.assert_called_once()
+        self.assistant_repository.add_listing_moderation_notification.assert_called_once()
 
 
 if __name__ == "__main__":

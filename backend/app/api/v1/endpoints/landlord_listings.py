@@ -20,7 +20,7 @@ from app.schemas.landlord_listing import (
     ListingCreateRequest,
     ListingUpdateRequest,
 )
-from app.schemas.listing import ListingResponse
+from app.schemas.listing import LandlordListingResponse
 from app.services.landlord_listing_service import (
     LandlordListingService,
     ListingAmenityNotFoundError,
@@ -50,12 +50,12 @@ def get_landlord_listing_service(
 
 @router.get(
     "/users/me/listings",
-    response_model=list[ListingResponse],
+    response_model=list[LandlordListingResponse],
 )
 def list_my_listings(
     current_landlord: User = Depends(landlord_dependency),
     service: LandlordListingService = Depends(get_landlord_listing_service),
-) -> list[ListingResponse]:
+) -> list[LandlordListingResponse]:
     try:
         return service.list_for_landlord(current_landlord.user_id)
     except SQLAlchemyError as exc:
@@ -68,14 +68,14 @@ def list_my_listings(
 
 @router.post(
     "/listings",
-    response_model=ListingResponse,
+    response_model=LandlordListingResponse,
     status_code=status.HTTP_201_CREATED,
 )
 def create_listing(
     changes: ListingCreateRequest,
     current_landlord: User = Depends(landlord_dependency),
     service: LandlordListingService = Depends(get_landlord_listing_service),
-) -> ListingResponse:
+) -> LandlordListingResponse:
     try:
         return service.create_listing(current_landlord.user_id, changes)
     except ListingAreaNotFoundError as exc:
@@ -98,14 +98,14 @@ def create_listing(
 
 @router.patch(
     "/listings/{listing_id}",
-    response_model=ListingResponse,
+    response_model=LandlordListingResponse,
 )
 def update_listing(
     changes: ListingUpdateRequest,
     listing_id: Annotated[int, Path(gt=0)],
     current_landlord: User = Depends(landlord_dependency),
     service: LandlordListingService = Depends(get_landlord_listing_service),
-) -> ListingResponse:
+) -> LandlordListingResponse:
     try:
         return service.update_listing(
             current_landlord.user_id,
@@ -142,13 +142,13 @@ def update_listing(
 
 @router.post(
     "/listings/{listing_id}/submit",
-    response_model=ListingResponse,
+    response_model=LandlordListingResponse,
 )
 def submit_listing(
     listing_id: Annotated[int, Path(gt=0)],
     current_landlord: User = Depends(landlord_dependency),
     service: LandlordListingService = Depends(get_landlord_listing_service),
-) -> ListingResponse:
+) -> LandlordListingResponse:
     try:
         return service.submit_listing(current_landlord.user_id, listing_id)
     except ListingNotFoundError as exc:
@@ -171,13 +171,13 @@ def submit_listing(
 
 @router.post(
     "/listings/{listing_id}/withdraw",
-    response_model=ListingResponse,
+    response_model=LandlordListingResponse,
 )
 def withdraw_listing(
     listing_id: Annotated[int, Path(gt=0)],
     current_landlord: User = Depends(landlord_dependency),
     service: LandlordListingService = Depends(get_landlord_listing_service),
-) -> ListingResponse:
+) -> LandlordListingResponse:
     try:
         return service.withdraw_listing(current_landlord.user_id, listing_id)
     except ListingNotFoundError as exc:
@@ -195,7 +195,7 @@ def withdraw_listing(
 
 @router.post(
     "/listings/{listing_id}/photos",
-    response_model=ListingResponse,
+    response_model=LandlordListingResponse,
     status_code=status.HTTP_201_CREATED,
 )
 def upload_listing_photo(
@@ -203,7 +203,7 @@ def upload_listing_photo(
     photo: Annotated[UploadFile, File()],
     current_landlord: User = Depends(landlord_dependency),
     service: LandlordListingService = Depends(get_landlord_listing_service),
-) -> ListingResponse:
+) -> LandlordListingResponse:
     if photo.content_type not in ALLOWED_PHOTO_TYPES:
         raise HTTPException(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,

@@ -10,6 +10,11 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.api.v1.endpoints.listings import get_listing_service
 from app.api.v1.router import api_router
 from app.schemas.listing import ListingResponse
+from app.schemas.location import PublicListingLocationResponse
+from app.services.google_places import (
+    GooglePlacesConfigurationError,
+    GooglePlacesLookupError,
+)
 
 
 class ListingEndpointTests(unittest.TestCase):
@@ -109,6 +114,62 @@ class ListingEndpointTests(unittest.TestCase):
             response.json()["detail"],
             "Listing data is temporarily unavailable.",
         )
+
+    def test_get_public_map_location_returns_service_result(self) -> None:
+        self.service.get_public_listing_location.return_value = (
+            PublicListingLocationResponse(
+                approximate_latitude=-26.2,
+                approximate_longitude=28.05,
+            )
+        )
+
+        response = self.client.get("/api/v1/listings/7/map-location")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json(),
+            {
+                "approximate_latitude": -26.2,
+                "approximate_longitude": 28.05,
+            },
+        )
+        self.assertEqual(response.headers["cache-control"], "no-store")
+        self.service.get_public_listing_location.assert_called_once_with(7)
+
+    def test_get_public_map_location_returns_not_found_when_missing(
+        self,
+    ) -> None:
+        self.service.get_public_listing_location.return_value = None
+
+        response = self.client.get("/api/v1/listings/7/map-location")
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_get_public_map_location_returns_unavailable_on_provider_error(
+        self,
+    ) -> None:
+        self.service.get_public_listing_location.side_effect = (
+            GooglePlacesLookupError("provider unavailable")
+        )
+
+        response = self.client.get("/api/v1/listings/7/map-location")
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(
+            response.json()["detail"],
+            "Map location is temporarily unavailable.",
+        )
+
+    def test_get_public_map_location_returns_unavailable_without_key(
+        self,
+    ) -> None:
+        self.service.get_public_listing_location.side_effect = (
+            GooglePlacesConfigurationError("missing key")
+        )
+
+        response = self.client.get("/api/v1/listings/7/map-location")
+
+        self.assertEqual(response.status_code, 503)
 
 
 if __name__ == "__main__":

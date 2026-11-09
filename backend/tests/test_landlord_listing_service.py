@@ -5,6 +5,7 @@ from io import BytesIO
 from unittest.mock import Mock
 
 from sqlalchemy.exc import SQLAlchemyError
+from pydantic import ValidationError
 
 from app.models.amenity import Amenity
 from app.models.listing import Listing, ListingPhoto
@@ -94,6 +95,77 @@ class LandlordListingServiceTests(unittest.TestCase):
 
         self.listings.add.assert_not_called()
         self.db.commit.assert_not_called()
+
+    def test_create_rejects_partial_coordinates(self) -> None:
+        payload = self.create_request().model_dump()
+        payload["latitude"] = -26.2
+
+        with self.assertRaises(ValidationError):
+            ListingCreateRequest.model_validate(payload)
+
+    def test_create_rejects_google_place_id_with_coordinates(self) -> None:
+        payload = self.create_request().model_dump()
+        payload.update(
+            google_place_id="google-place-id",
+            latitude=-26.2,
+            longitude=28.0,
+        )
+
+        with self.assertRaises(ValidationError):
+            ListingCreateRequest.model_validate(payload)
+
+    def test_update_rejects_partial_coordinates(self) -> None:
+        with self.assertRaises(ValidationError):
+            ListingUpdateRequest(latitude=-26.2)
+
+    def test_update_allows_clearing_both_coordinates(self) -> None:
+        changes = ListingUpdateRequest(latitude=None, longitude=None)
+
+        self.assertEqual(changes.model_dump(exclude_unset=True), {
+            "latitude": None,
+            "longitude": None,
+        })
+
+    def test_update_with_selected_address_and_coordinates_persists_location(
+        self,
+    ) -> None:
+        listing = self.make_listing()
+        listing.google_place_id = "legacy-place-id"
+        self.listings.get_owned.return_value = listing
+
+        result = self.service.update_listing(
+            8,
+            12,
+            ListingUpdateRequest(
+                address="Braamfontein, Johannesburg, South Africa",
+                latitude=-26.2,
+                longitude=28.0,
+            ),
+        )
+
+        self.assertEqual(
+            result.address,
+            "Braamfontein, Johannesburg, South Africa",
+        )
+        self.assertIsNone(listing.google_place_id)
+        self.assertEqual(result.latitude, -26.2)
+        self.assertEqual(result.longitude, 28.0)
+
+    def test_update_with_google_place_id_clears_stored_coordinates(self) -> None:
+        listing = self.make_listing()
+        listing.latitude = -26.2
+        listing.longitude = 28.0
+        self.listings.get_owned.return_value = listing
+
+        result = self.service.update_listing(
+            8,
+            12,
+            ListingUpdateRequest(google_place_id="google-place-id"),
+        )
+
+        self.assertEqual(result.google_place_id, "google-place-id")
+        self.assertIsNone(result.latitude)
+        self.assertIsNone(result.longitude)
 
     def test_create_assigns_selected_amenities(self) -> None:
         wifi = Amenity(amenity_id=1, name="Wi-Fi")

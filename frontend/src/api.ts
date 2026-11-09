@@ -89,6 +89,58 @@ export interface Conversation {
   created_at: string;
 }
 
+export type AssistantRole = "tenant" | "landlord";
+
+export interface AssistantConversation {
+  conversation_id: number;
+  assistant_role: AssistantRole;
+  created_at: string;
+  updated_at: string;
+  last_message: string | null;
+}
+
+export interface AssistantListingResult {
+  listing: Listing;
+  area_name: string;
+}
+
+export interface AssistantNotification {
+  kind: "listing_approved" | "listing_rejected";
+  listing_id: number;
+  listing_title: string;
+  reason: string | null;
+}
+
+export interface AssistantDraft {
+  area_id: number | null;
+  area_name: string | null;
+  title: string | null;
+  description: string | null;
+  room_type: string | null;
+  monthly_rent: string | null;
+  deposit_amount: string | null;
+  address: string | null;
+  date_available: string | null;
+  amenities: string[];
+  missing_fields: string[];
+  ready_to_confirm: boolean;
+}
+
+export interface AssistantMessage {
+  message_id: number;
+  sender_role: "user" | "assistant";
+  content: string;
+  created_at: string;
+  listings: AssistantListingResult[];
+  draft: AssistantDraft | null;
+  created_listing: Listing | null;
+  notification: AssistantNotification | null;
+}
+
+export interface AssistantConversationDetail extends AssistantConversation {
+  messages: AssistantMessage[];
+}
+
 export type MessageStatus = "sent" | "read";
 
 export interface ConversationMessage {
@@ -437,6 +489,78 @@ export function retryWhatsAppDelivery(
   );
 }
 
+export function getAssistantConversations(
+  accessToken: string,
+): Promise<AssistantConversation[]> {
+  return requestJson<AssistantConversation[]>("/api/v1/assistant/conversations", {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+}
+
+export function createAssistantConversation(
+  accessToken: string,
+  assistantRole: AssistantRole,
+): Promise<AssistantConversation> {
+  return requestJson<AssistantConversation>(
+    "/api/v1/assistant/conversations",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ assistant_role: assistantRole }),
+    },
+  );
+}
+
+export function getAssistantConversation(
+  accessToken: string,
+  conversationId: number,
+): Promise<AssistantConversationDetail> {
+  return requestJson<AssistantConversationDetail>(
+    `/api/v1/assistant/conversations/${conversationId}`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
+  );
+}
+
+export function sendAssistantMessage(
+  accessToken: string,
+  conversationId: number,
+  content: string,
+): Promise<AssistantMessage> {
+  return requestJson<AssistantMessage>(
+    `/api/v1/assistant/conversations/${conversationId}/messages`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ content }),
+    },
+  );
+}
+
+export function confirmAssistantListing(
+  accessToken: string,
+  conversationId: number,
+): Promise<{ conversation_id: number; listing: Listing }> {
+  return requestJson<{ conversation_id: number; listing: Listing }>(
+    `/api/v1/assistant/conversations/${conversationId}/confirm-listing`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
+  );
+}
+
 export function createSavedSearch(
   accessToken: string,
   payload: SavedSearchCreateRequest,
@@ -496,8 +620,26 @@ export function getMyReviews(accessToken: string): Promise<Review[]> {
   });
 }
 
-export function getAreas(): Promise<Area[]> {
-  return requestJson<Area[]>("/api/v1/areas");
+export function getAreas(search?: string): Promise<Area[]> {
+  const query = search?.trim();
+  const path =
+    query === undefined || query === ""
+      ? "/api/v1/areas"
+      : `/api/v1/areas?search=${encodeURIComponent(query)}`;
+  return requestJson<Area[]>(path);
+}
+
+export function resolveArea(
+  accessToken: string,
+  name: string,
+): Promise<Area> {
+  return requestJson<Area>("/api/v1/areas/resolve", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ name }),
+  });
 }
 
 export function getAmenities(signal?: AbortSignal): Promise<Amenity[]> {
@@ -511,6 +653,21 @@ export function getMyListings(accessToken: string): Promise<Listing[]> {
     },
   });
 }
+
+export function getPublicListingMapLocation(
+  listingId: number,
+  signal?: AbortSignal,
+): Promise<PublicListingLocation> {
+  return requestJson<PublicListingLocation>(
+    `/api/v1/listings/${listingId}/map-location`,
+    { signal },
+  );
+}
+
+export type PublicListingLocation = {
+  approximate_latitude: number;
+  approximate_longitude: number;
+};
 
 export function createListing(
   accessToken: string,

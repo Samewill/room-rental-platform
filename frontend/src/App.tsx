@@ -1,14 +1,16 @@
 import { useEffect, useState } from "react";
-import type { FormEvent } from "react";
+import type { FormEvent, ReactNode } from "react";
 
 import {
   ApiError,
   getMyProfile,
   login,
   registerAccount,
+  type AssistantRole,
   type UserProfile,
 } from "./api";
 import AppLink from "./components/AppLink";
+import AssistantWidget from "./components/AssistantWidget";
 import DashboardPage, { type DashboardRole } from "./pages/DashboardPage";
 import AdminReportsPage from "./pages/AdminReportsPage";
 import AdminModerationDashboardPage from "./pages/AdminModerationDashboardPage";
@@ -164,6 +166,32 @@ function App() {
     window.scrollTo({ top: 0 });
   }
 
+  function renderWithAssistant(page: ReactNode): ReactNode {
+    if (
+      profile === null ||
+      accessToken === null ||
+      profile.roles.includes("admin") ||
+      (!profile.roles.includes("tenant") && !profile.roles.includes("landlord"))
+    ) {
+      return page;
+    }
+
+    const role: AssistantRole = profile.roles.includes("landlord")
+      ? "landlord"
+      : "tenant";
+    return (
+      <>
+        {page}
+        <AssistantWidget
+          accessToken={accessToken}
+          key={profile.user_id}
+          onNavigate={navigate}
+          role={role}
+        />
+      </>
+    );
+  }
+
   function updateField(field: keyof FormFields, value: string) {
     setFields((currentFields) => ({ ...currentFields, [field]: value }));
   }
@@ -255,7 +283,7 @@ function App() {
   if (listingMatch !== null) {
     const listingId = Number(listingMatch[1]);
     if (Number.isSafeInteger(listingId) && listingId > 0) {
-      return (
+      return renderWithAssistant(
         <ListingDetailsPage
           accessToken={
             profile?.roles.includes("tenant") === true ? accessToken : null
@@ -274,7 +302,7 @@ function App() {
           onRetrySessionRestore={retrySessionRestore}
           sessionNotice={sessionNotice}
           sessionRestoreError={sessionRestoreError}
-        />
+        />,
       );
     }
   }
@@ -288,7 +316,7 @@ function App() {
     accessToken !== null &&
     profile.roles.includes("tenant")
   ) {
-    return (
+    return renderWithAssistant(
       <TenantReportsPage
         accessToken={accessToken}
         initialListingId={
@@ -298,7 +326,7 @@ function App() {
         }
         onBackToDashboard={() => navigate("/tenant")}
         profile={profile}
-      />
+      />,
     );
   }
 
@@ -324,18 +352,18 @@ function App() {
     accessToken !== null &&
     (profile.roles.includes("tenant") || profile.roles.includes("landlord"))
   ) {
-    return (
+    return renderWithAssistant(
       <ConversationsPage
         accessToken={accessToken}
         onNavigate={navigate}
         onSignOut={handleSignOut}
         profile={profile}
-      />
+      />,
     );
   }
 
   if (pathname === "/") {
-    return (
+    return renderWithAssistant(
       <ListingsPage
         accessToken={
           profile?.roles.includes("tenant") === true ? accessToken : null
@@ -347,7 +375,7 @@ function App() {
         profile={profile}
         sessionNotice={sessionNotice}
         sessionRestoreError={sessionRestoreError}
-      />
+      />,
     );
   }
 
@@ -367,13 +395,13 @@ function App() {
     const dashboardRole = getDashboardRole(profile.roles);
     if (pathname === `/${dashboardRole}`) {
       if (dashboardRole === "landlord") {
-        return (
+        return renderWithAssistant(
           <LandlordDashboardPage
             accessToken={accessToken}
             onNavigate={navigate}
             onSignOut={handleSignOut}
             profile={profile}
-          />
+          />,
         );
       }
 
@@ -388,7 +416,7 @@ function App() {
         );
       }
 
-      return (
+      return renderWithAssistant(
         <DashboardPage
           accessToken={accessToken}
           onNavigate={navigate}
@@ -396,7 +424,7 @@ function App() {
           onSignOut={handleSignOut}
           profile={profile}
           role={dashboardRole}
-        />
+        />,
       );
     }
   }

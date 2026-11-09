@@ -232,6 +232,8 @@ export default function ListingsPage({
       const matchesLocation =
         locationQuery === "" ||
         listing.address.toLocaleLowerCase().includes(locationQuery) ||
+        listing.area_name?.toLocaleLowerCase().includes(locationQuery) ===
+          true ||
         areaNames
           .get(listing.area_id)
           ?.includes(locationQuery) === true;

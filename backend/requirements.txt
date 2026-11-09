@@ -11,3 +11,5 @@ PyJWT[crypto]
 cloudinary
 python-multipart
 cryptography
+httpx
+langgraph

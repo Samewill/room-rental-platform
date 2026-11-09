@@ -95,10 +95,8 @@ Configure these server-side environment variables before applying migration
 - `WHATSAPP_PHONE_LOOKUP_KEY` (independent random secret, at least 32 bytes)
 - `WHATSAPP_GRAPH_API_VERSION` (defaults to `v23.0`)
 - `WHATSAPP_TEMPLATE_LANGUAGE` (defaults to `en_US`)
-- `WHATSAPP_VERIFICATION_TEMPLATE_NAME` (defaults to
-  `rental_phone_verification`)
-- `WHATSAPP_MESSAGE_TEMPLATE_NAME` (defaults to
-  `rental_message_notification`)
+- `WHATSAPP_VERIFICATION_TEMPLATE_NAME` (defaults to `rental_phone_verification`)
+- `WHATSAPP_MESSAGE_TEMPLATE_NAME` (defaults to `rental_message_notification`)
 
 Both templates must be approved in Meta and have one body parameter. Configure
 Meta's webhook callback as `/api/v1/webhooks/whatsapp` with the verify token
@@ -131,3 +129,67 @@ HTTPS webhook URL with Meta.
 - WhatsApp privacy, webhook signature/challenge, reply routing, provider request,
   API response privacy, and migration uniqueness tests were added. A live Meta
   delivery test remains pending Business credentials and approved templates.
+
+## Website AI assistant
+
+The website now includes a role-specific AI assistant widget for signed-in
+tenants and landlords. It is separate from the persisted tenant–landlord
+Messages area; assistant conversations and workflow state are stored in their
+own tables so they can be reopened after signing in again.
+
+### Assistant workflows
+
+- Tenant conversations use LangGraph to extract room-search criteria. Search
+  results are filtered from `ListingService.list_public_listings()`, which
+  already restricts results to active, approved listings. Listing cards,
+  prices, addresses, amenities, and availability are populated only from those
+  service responses. Unsupported amenity requests do not return approximate
+  matches. Contact requests use the existing contact-request API.
+- Landlord conversations collect the fields required by
+  `ListingCreateRequest`, use the existing area and amenity catalogs, and show
+  a review summary before the landlord confirms. Confirmation calls the
+  existing `LandlordListingService`; it creates a draft and does not publish
+  it. Optional photos are uploaded using the existing photo endpoint.
+- When an administrator approves or rejects a listing, the moderation
+  transaction also creates a landlord assistant conversation with a persisted
+  decision notification. Approval notifications link to the published listing;
+  rejection notifications include the admin's reason and link to the landlord
+  dashboard to edit the draft. An open assistant widget refreshes the
+  conversation list every 10 seconds and opens a new notification conversation;
+  landlords see it when they next open the widget if it was closed.
+- Assistant history is owner-scoped. The API checks the user's tenant or
+  landlord role and conversation ownership before reading or changing a
+  conversation. A listing is created only by the explicit confirmation route.
+
+### AI provider configuration
+
+Inception is tried first and Groq is used as a fallback. Configure
+`INCEPTION_API_KEY` and/or `GROQ_API_KEY` in `backend/.env`; never put provider
+keys in the frontend. Model, token, retry, backoff, and timeout settings are
+available in `backend/.env.example`. The user-provided `MISTRAL_API_KEY` is not
+used by the selected Inception/Groq routing.
+
+### Assistant API routes
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/v1/assistant/conversations` | List the authenticated user's assistant conversations. |
+| `POST` | `/api/v1/assistant/conversations` | Start a tenant or landlord assistant conversation. |
+| `GET` | `/api/v1/assistant/conversations/{conversation_id}` | Retrieve an owned conversation and its messages. |
+| `POST` | `/api/v1/assistant/conversations/{conversation_id}/messages` | Add a message and run the role-specific LangGraph workflow. |
+| `POST` | `/api/v1/assistant/conversations/{conversation_id}/confirm-listing` | Confirm a complete landlord draft and create it through the existing service. |
+
+Migration `20261105_11_create_ai_assistant.py` creates the assistant
+conversation and message tables. Apply it with `alembic upgrade head` from the
+backend directory before using the assistant against the database. It was not
+applied to the configured database as part of this implementation.
+
+### Verification
+
+- Backend suite: 264 passed, including assistant graph, API authorization,
+  provider fallback, and listing-filter tests.
+- Frontend TypeScript check and production build: passed.
+- The new migration upgrade and downgrade both passed against a temporary
+  SQLite database. The configured database was not changed.
+- A live provider request and signed-in browser chat have not been exercised;
+  provider behavior is covered with mocked requests in tests.

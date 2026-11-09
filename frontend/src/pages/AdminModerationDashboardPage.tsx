@@ -47,6 +47,10 @@ export default function AdminModerationDashboardPage({
 }: AdminModerationDashboardPageProps) {
   const [pendingListings, setPendingListings] = useState<Listing[]>([]);
   const [publishedListings, setPublishedListings] = useState<Listing[]>([]);
+  const [listingView, setListingView] = useState<"pending" | "published">(
+    "pending",
+  );
+  const [searchQuery, setSearchQuery] = useState("");
   const [reasons, setReasons] = useState<Record<number, string>>({});
   const [histories, setHistories] = useState<
     Record<number, ListingModerationRecord[]>
@@ -57,6 +61,17 @@ export default function AdminModerationDashboardPage({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const currentListings =
+    listingView === "pending" ? pendingListings : publishedListings;
+  const normalizedSearch = searchQuery.trim().toLocaleLowerCase();
+  const filteredListings = currentListings.filter((listing) =>
+    [
+      listing.title,
+      listing.address,
+      listing.room_type.replaceAll("_", " "),
+      String(listing.listing_id),
+    ].some((value) => value.toLocaleLowerCase().includes(normalizedSearch)),
+  );
 
   async function refreshListings(): Promise<void> {
     const [pending, published] = await Promise.all([
@@ -163,30 +178,45 @@ export default function AdminModerationDashboardPage({
     return (
       <li className="moderation-listing" key={listing.listing_id}>
         <div className="moderation-listing-main">
-          <div className="moderation-listing-copy">
-            <p className="moderation-listing-type">
-              {listing.room_type.replaceAll("_", " ")}
-            </p>
-            <h3>{listing.title}</h3>
-            <p>{listing.description}</p>
-            <p>
-              R {Number(listing.monthly_rent).toLocaleString("en-ZA")} / month
-              {" · "}
-              {listing.address}
-            </p>
-            <p>Available {listing.date_available}</p>
-          </div>
-          {listing.photos.length > 0 && (
-            <div className="moderation-photo-list">
-              {listing.photos.map((photo) => (
-                <img
-                  alt={`Room photo for ${listing.title}`}
-                  key={photo.photo_id}
-                  src={photo.url}
-                />
-              ))}
+          {listing.photos[0] !== undefined ? (
+            <img
+              alt={`Room photo for ${listing.title}`}
+              className="moderation-listing-cover"
+              src={listing.photos[0].url}
+            />
+          ) : (
+            <div className="moderation-listing-cover moderation-listing-no-photo">
+              <span aria-hidden="true">⌂</span>
+              <small>No photo</small>
             </div>
           )}
+          <div className="moderation-listing-copy">
+            <div className="moderation-listing-heading">
+              <div>
+                <p className="moderation-listing-type">
+                  {listing.room_type.replaceAll("_", " ")}
+                </p>
+                <h3>{listing.title}</h3>
+              </div>
+              <span
+                className={`moderation-status ${isPublished ? "is-published" : "is-pending"}`}
+              >
+                {isPublished ? "Published" : "Needs review"}
+              </span>
+            </div>
+            <p className="moderation-listing-description">
+              {listing.description}
+            </p>
+            <p className="moderation-listing-address">{listing.address}</p>
+            <div className="moderation-listing-meta">
+              <strong>
+                R {Number(listing.monthly_rent).toLocaleString("en-ZA")}
+                <span> / month</span>
+              </strong>
+              <span>Available {listing.date_available}</span>
+              <span>Listing #{listing.listing_id}</span>
+            </div>
+          </div>
         </div>
 
         <label className="moderation-reason">
@@ -308,24 +338,71 @@ export default function AdminModerationDashboardPage({
   }
 
   return (
-    <main className="page-shell admin-moderation-page">
-      <section className="admin-moderation-shell">
-        <header className="admin-moderation-header">
-          <div>
-            <p className="eyebrow">Room Rentals · Administration</p>
-            <h1>Listing moderation</h1>
-            <p className="intro">Welcome, {profile.full_name}.</p>
+    <main className="admin-dashboard">
+      <aside className="admin-sidebar" aria-label="Admin navigation">
+        <a className="admin-brand" href="/" aria-label="Room Rentals home">
+          <span aria-hidden="true">R</span>
+          <strong>Room Rentals</strong>
+        </a>
+        <p className="admin-nav-label">WORKSPACE</p>
+        <nav className="admin-sidebar-nav">
+          <button className="admin-nav-item active" type="button">
+            <span aria-hidden="true">▦</span>
+            Listings
+          </button>
+          <button
+            className="admin-nav-item"
+            onClick={onOpenReports}
+            type="button"
+          >
+            <span aria-hidden="true">⚑</span>
+            Reports
+          </button>
+          <a className="admin-nav-item" href="/">
+            <span aria-hidden="true">↗</span>
+            Browse rooms
+          </a>
+        </nav>
+        <div className="admin-sidebar-account">
+          <span className="admin-avatar" aria-hidden="true">
+            {profile.full_name
+              .split(/\s+/)
+              .slice(0, 2)
+              .map((part) => part[0] ?? "")
+              .join("")
+              .toUpperCase()}
+          </span>
+          <span className="admin-account-name">{profile.full_name}</span>
+        </div>
+      </aside>
+
+      <div className="admin-dashboard-main">
+        <header className="admin-topbar">
+          <div className="admin-page-heading">
+            <p className="admin-eyebrow">ADMIN WORKSPACE</p>
+            <h1>Listings</h1>
+            <p>Review submissions and manage published rooms.</p>
           </div>
-          <div className="moderation-actions">
+          <div className="admin-topbar-actions">
+            <label className="admin-search">
+              <span aria-hidden="true">⌕</span>
+              <span className="visually-hidden">Search listings</span>
+              <input
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Search by title, address or ID"
+                type="search"
+                value={searchQuery}
+              />
+            </label>
             <button
-              className="secondary-button"
+              className="primary-button admin-reports-button"
               onClick={onOpenReports}
               type="button"
             >
-              Open report queue
+              Open reports
             </button>
             <button
-              className="secondary-button"
+              className="admin-topbar-signout"
               onClick={onSignOut}
               type="button"
             >
@@ -334,54 +411,117 @@ export default function AdminModerationDashboardPage({
           </div>
         </header>
 
-        <p className="admin-moderation-note">
-          Approving publishes a listing when it is available. Rejection returns
-          it to the landlord as a draft. Hiding removes a published listing
-          from public search.
-        </p>
-
-        {errorMessage !== null && (
-          <p className="message message-error" role="alert">
-            {errorMessage}
-          </p>
-        )}
-        {notice !== null && (
-          <p className="message message-success" role="status">
-            {notice}
-          </p>
-        )}
-
-        <section
-          className="admin-moderation-panel"
-          aria-labelledby="pending-listings-heading"
-        >
-          <h2 id="pending-listings-heading">Pending review</h2>
-          {isLoading && <p role="status">Loading pending listings...</p>}
-          {!isLoading && pendingListings.length === 0 && (
-            <p>No listings are waiting for review.</p>
+        <div className="admin-dashboard-content">
+          {errorMessage !== null && (
+            <p className="message message-error" role="alert">
+              {errorMessage}
+            </p>
           )}
-          <ul className="moderation-list">
-            {pendingListings.map((listing) => renderListing(listing, false))}
-          </ul>
-        </section>
-
-        <section
-          className="admin-moderation-panel"
-          aria-labelledby="published-listings-heading"
-        >
-          <h2 id="published-listings-heading">Published listings</h2>
-          {!isLoading && publishedListings.length === 0 && (
-            <p>No published listings are available to hide.</p>
+          {notice !== null && (
+            <p className="message message-success" role="status">
+              {notice}
+            </p>
           )}
-          <ul className="moderation-list">
-            {publishedListings.map((listing) => renderListing(listing, true))}
-          </ul>
-        </section>
 
-        <footer className="admin-moderation-footer">
-          <a href="/">Browse public rooms</a>
-        </footer>
-      </section>
+          <section className="admin-stats" aria-label="Listing overview">
+            <article className="admin-stat-card pending-stat">
+              <span className="admin-stat-mark" aria-hidden="true">
+                !
+              </span>
+              <div>
+                <p>Needs review</p>
+                <strong>{pendingListings.length}</strong>
+                <small>Listings awaiting a decision</small>
+              </div>
+            </article>
+            <article className="admin-stat-card published-stat">
+              <span className="admin-stat-mark" aria-hidden="true">
+                ✓
+              </span>
+              <div>
+                <p>Published</p>
+                <strong>{publishedListings.length}</strong>
+                <small>Listings currently published</small>
+              </div>
+            </article>
+            <article className="admin-stat-card total-stat">
+              <span className="admin-stat-mark" aria-hidden="true">
+                ▦
+              </span>
+              <div>
+                <p>Listings in view</p>
+                <strong>
+                  {pendingListings.length + publishedListings.length}
+                </strong>
+                <small>Pending and published listings</small>
+              </div>
+            </article>
+          </section>
+
+          <section
+            className="admin-moderation-panel"
+            aria-labelledby="listings-heading"
+          >
+            <div className="admin-listings-toolbar">
+              <div>
+                <p className="admin-section-eyebrow">PROPERTY MANAGEMENT</p>
+                <h2 id="listings-heading">
+                  {listingView === "pending"
+                    ? "Review queue"
+                    : "Published listings"}
+                </h2>
+              </div>
+              <div
+                aria-label="Filter listings by status"
+                className="admin-listing-tabs"
+                role="group"
+              >
+                <button
+                  aria-pressed={listingView === "pending"}
+                  className={listingView === "pending" ? "active" : ""}
+                  onClick={() => setListingView("pending")}
+                  type="button"
+                >
+                  Needs review <span>{pendingListings.length}</span>
+                </button>
+                <button
+                  aria-pressed={listingView === "published"}
+                  className={listingView === "published" ? "active" : ""}
+                  onClick={() => setListingView("published")}
+                  type="button"
+                >
+                  Published <span>{publishedListings.length}</span>
+                </button>
+              </div>
+            </div>
+
+            {isLoading && (
+              <p className="admin-listings-state" role="status">
+                Loading listings...
+              </p>
+            )}
+            {!isLoading && filteredListings.length === 0 && (
+              <p className="admin-listings-state">
+                {normalizedSearch.length > 0
+                  ? "No listings match your search."
+                  : listingView === "pending"
+                    ? "No listings are waiting for review."
+                    : "No published listings are available to hide."}
+              </p>
+            )}
+            <ul className="moderation-list">
+              {filteredListings.map((listing) =>
+                renderListing(listing, listingView === "published"),
+              )}
+            </ul>
+          </section>
+          <p className="admin-moderation-note">
+            Approving publishes a listing when it is available. Rejection
+            returns it to the landlord as a draft. Hiding removes a published
+            listing from public search.
+          </p>
+        </div>
+      </div>
     </main>
   );
 }
