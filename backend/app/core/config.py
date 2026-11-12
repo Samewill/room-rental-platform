@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     database_url: str
     jwt_secret_key: SecretStr | None = None
     access_token_expire_minutes: int = Field(default=30, gt=0)
+    rental_interest_expiry_days: int = Field(default=90, gt=0)
+    rental_interest_max_submissions_per_day: int = Field(default=20, gt=0)
     cors_allowed_origins: str = (
         "http://127.0.0.1:5173,http://localhost:5173,"
         "http://127.0.0.1:5174,http://localhost:5174"
@@ -29,6 +31,7 @@ class Settings(BaseSettings):
     whatsapp_template_language: str = "en_US"
     whatsapp_verification_template_name: str = "rental_phone_verification"
     whatsapp_message_template_name: str = "rental_message_notification"
+    whatsapp_room_alert_template_name: str = "room_rental_new_listing_alert"
     groq_api_key: SecretStr | None = None
     groq_model: str = "llama-3.3-70b-versatile"
     groq_max_tokens: int = Field(default=1024, gt=0)

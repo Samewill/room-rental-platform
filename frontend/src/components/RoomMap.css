@@ -33,6 +33,9 @@
 }
 
 .google-address-autocomplete {
+  border: 1px solid #cbd3dd;
+  border-radius: 8px;
+  color-scheme: light;
   display: block;
   width: 100%;
 }

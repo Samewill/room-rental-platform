@@ -16,6 +16,8 @@ class SavedSearchModelTests(unittest.TestCase):
                 "room_type",
                 "minimum_rent",
                 "maximum_rent",
+                "alerts_enabled",
+                "alerts_opted_in_at",
                 "created_at",
             },
         )

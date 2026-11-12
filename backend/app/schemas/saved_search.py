@@ -25,6 +25,7 @@ class SavedSearchCreateRequest(BaseModel):
     minimum_rent: Rent | None = None
     maximum_rent: Rent | None = None
     amenities: list[AmenityName] = Field(default_factory=list, max_length=4)
+    alerts_enabled: bool = False
 
     @model_validator(mode="after")
     def validate_search_criteria(self) -> "SavedSearchCreateRequest":
@@ -61,4 +62,9 @@ class SavedSearchResponse(BaseModel):
         default_factory=list,
         validation_alias="amenity_names",
     )
+    alerts_enabled: bool = False
     created_at: datetime
+
+
+class SavedSearchAlertsUpdateRequest(BaseModel):
+    alerts_enabled: bool

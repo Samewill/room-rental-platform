@@ -171,6 +171,7 @@ export interface SavedSearch {
   minimum_rent: string | number | null;
   maximum_rent: string | number | null;
   amenities: string[];
+  alerts_enabled: boolean;
   created_at: string;
 }
 
@@ -180,6 +181,125 @@ export interface SavedSearchCreateRequest {
   minimum_rent?: number;
   maximum_rent?: number;
   amenities?: string[];
+  alerts_enabled?: boolean;
+}
+
+export interface SavedListingStatus {
+  listing_id: number;
+  saved: boolean;
+}
+
+export type RentalInterestRoomType =
+  | "single_room"
+  | "shared_room"
+  | "bachelor_flat"
+  | "self_contained";
+
+export type RentalInterestStatus =
+  | "active"
+  | "waitlisted"
+  | "contacted"
+  | "invited_to_apply"
+  | "converted"
+  | "withdrawn"
+  | "expired"
+  | "closed";
+
+export interface InterestOpportunitySummary {
+  opportunity_id: number;
+  listing_id: number;
+  listing_title: string;
+  address: string;
+  area_name: string;
+  room_type: RentalInterestRoomType;
+  monthly_rent: string | number;
+  amenities: string[];
+  available_from: string;
+  available_until: string | null;
+  available_units: number | null;
+  expected_rental_duration_months: number | null;
+}
+
+export interface InterestOpportunity extends InterestOpportunitySummary {
+  status: "open" | "closed";
+  availability_status: "open" | "full" | "closed";
+  max_active_registrations: number;
+  active_registration_count: number;
+  waitlist_count: number;
+  waitlist_enabled: boolean;
+}
+
+export interface InterestOpportunityRequest {
+  available_from: string;
+  available_until?: string | null;
+  available_units?: number | null;
+  max_active_registrations: number;
+  waitlist_enabled: boolean;
+  expected_rental_duration_months: number | null;
+}
+
+export interface RentalInterestStatusHistory {
+  from_status: string | null;
+  to_status: RentalInterestStatus;
+  changed_at: string;
+  note: string | null;
+}
+
+export interface RentalInterest {
+  interest_id: number;
+  opportunity: InterestOpportunitySummary;
+  expected_move_in_date: string;
+  expected_duration_months: number;
+  monthly_budget: string | number;
+  preferred_room_type: RentalInterestRoomType | null;
+  required_amenities: string[];
+  status: RentalInterestStatus;
+  reservation_confirmed: false;
+  registered_at: string;
+  expires_at: string;
+  history: RentalInterestStatusHistory[];
+}
+
+export interface LandlordRentalInterest extends RentalInterest {
+  tenant_name: string;
+  compatibility_score: number;
+  compatibility_reasons: string[];
+}
+
+export interface RentalInterestNotification {
+  notification_id: number;
+  interest_id: number;
+  listing_id: number;
+  event_type:
+    | "interest_registered"
+    | "interest_status_updated"
+    | "interest_promoted"
+    | "interest_expired"
+    | "opportunity_closed"
+    | "interest_withdrawn";
+  title: string;
+  body: string;
+  created_at: string;
+  read_at: string | null;
+}
+
+export interface RentalInterestCreateRequest {
+  expected_move_in_date: string;
+  expected_duration_months: number;
+  monthly_budget: number;
+  preferred_room_type?: RentalInterestRoomType | null;
+  required_amenities: string[];
+  join_waitlist: boolean;
+}
+
+export interface ReceivedRentalInterestFilters {
+  opportunity_id?: number;
+  move_in_from?: string;
+  move_in_until?: string;
+  minimum_budget?: number;
+  maximum_budget?: number;
+  preferred_room_type?: RentalInterestRoomType;
+  required_amenities?: string[];
 }
 
 export interface Review {
@@ -208,6 +328,7 @@ export class ApiError extends Error {
   constructor(
     message: string,
     readonly statusCode: number,
+    readonly code: string | null = null,
   ) {
     super(message);
     this.name = "ApiError";
@@ -239,7 +360,11 @@ async function requestJson<T>(
     : await response.text();
 
   if (!response.ok) {
-    throw new ApiError(getErrorMessage(body, response.status), response.status);
+    throw new ApiError(
+      getErrorMessage(body, response.status),
+      response.status,
+      getErrorCode(body),
+    );
   }
 
   return body as T;
@@ -250,6 +375,14 @@ function getErrorMessage(body: unknown, statusCode: number): string {
     const detail = body.detail;
     if (typeof detail === "string") {
       return detail;
+    }
+    if (
+      typeof detail === "object" &&
+      detail !== null &&
+      "message" in detail &&
+      typeof detail.message === "string"
+    ) {
+      return detail.message;
     }
     if (Array.isArray(detail)) {
       const messages = detail
@@ -272,6 +405,21 @@ function getErrorMessage(body: unknown, statusCode: number): string {
   }
 
   return `Request failed with status ${statusCode}.`;
+}
+
+function getErrorCode(body: unknown): string | null {
+  if (
+    typeof body !== "object" ||
+    body === null ||
+    !("detail" in body) ||
+    typeof body.detail !== "object" ||
+    body.detail === null ||
+    !("code" in body.detail) ||
+    typeof body.detail.code !== "string"
+  ) {
+    return null;
+  }
+  return body.detail.code;
 }
 
 export function registerAccount(
@@ -590,6 +738,229 @@ export function deleteSavedSearch(
 ): Promise<void> {
   return requestJson<void>(
     `/api/v1/users/me/saved-searches/${savedSearchId}`,
+    {
+      method: "DELETE",
+      headers: {
+        Authorization: "Bearer " + accessToken,
+      },
+    },
+  );
+}
+
+export function updateSavedSearchAlerts(
+  accessToken: string,
+  savedSearchId: number,
+  alertsEnabled: boolean,
+): Promise<SavedSearch> {
+  return requestJson<SavedSearch>(
+    `/api/v1/users/me/saved-searches/${savedSearchId}/alerts`,
+    {
+      method: "PATCH",
+      headers: {
+        Authorization: "Bearer " + accessToken,
+      },
+      body: JSON.stringify({ alerts_enabled: alertsEnabled }),
+    },
+  );
+}
+
+export function getMySavedListings(accessToken: string): Promise<Listing[]> {
+  return requestJson<Listing[]>("/api/v1/users/me/saved-listings", {
+    headers: {
+      Authorization: "Bearer " + accessToken,
+    },
+  });
+}
+
+export function getPublicInterestOpportunities(): Promise<InterestOpportunity[]> {
+  return requestJson<InterestOpportunity[]>("/api/v1/interest-opportunities");
+}
+
+export function getMyInterestOpportunities(
+  accessToken: string,
+): Promise<InterestOpportunity[]> {
+  return requestJson<InterestOpportunity[]>(
+    "/api/v1/users/me/interest-opportunities",
+    {
+      headers: { Authorization: "Bearer " + accessToken },
+    },
+  );
+}
+
+export function saveInterestOpportunity(
+  accessToken: string,
+  listingId: number,
+  payload: InterestOpportunityRequest,
+): Promise<InterestOpportunity> {
+  return requestJson<InterestOpportunity>(
+    `/api/v1/listings/${listingId}/interest-opportunity`,
+    {
+      method: "PUT",
+      headers: { Authorization: "Bearer " + accessToken },
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export function closeInterestOpportunity(
+  accessToken: string,
+  opportunityId: number,
+): Promise<InterestOpportunity> {
+  return requestJson<InterestOpportunity>(
+    `/api/v1/interest-opportunities/${opportunityId}/close`,
+    {
+      method: "POST",
+      headers: { Authorization: "Bearer " + accessToken },
+    },
+  );
+}
+
+export function createRentalInterest(
+  accessToken: string,
+  opportunityId: number,
+  payload: RentalInterestCreateRequest,
+): Promise<RentalInterest> {
+  return requestJson<RentalInterest>(
+    `/api/v1/interest-opportunities/${opportunityId}/interests`,
+    {
+      method: "POST",
+      headers: { Authorization: "Bearer " + accessToken },
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export function getMyRentalInterests(
+  accessToken: string,
+): Promise<RentalInterest[]> {
+  return requestJson<RentalInterest[]>("/api/v1/users/me/rental-interests", {
+    headers: { Authorization: "Bearer " + accessToken },
+  });
+}
+
+export function withdrawRentalInterest(
+  accessToken: string,
+  interestId: number,
+): Promise<RentalInterest> {
+  return requestJson<RentalInterest>(
+    `/api/v1/rental-interests/${interestId}/withdraw`,
+    {
+      method: "POST",
+      headers: { Authorization: "Bearer " + accessToken },
+    },
+  );
+}
+
+export function renewRentalInterest(
+  accessToken: string,
+  interestId: number,
+  joinWaitlist = false,
+): Promise<RentalInterest> {
+  return requestJson<RentalInterest>(
+    `/api/v1/rental-interests/${interestId}/renew`,
+    {
+      method: "POST",
+      headers: { Authorization: "Bearer " + accessToken },
+      body: JSON.stringify({ join_waitlist: joinWaitlist }),
+    },
+  );
+}
+
+export function getReceivedRentalInterests(
+  accessToken: string,
+  filters: ReceivedRentalInterestFilters = {},
+): Promise<LandlordRentalInterest[]> {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(filters)) {
+    if (Array.isArray(value)) {
+      value.forEach((item) => params.append(key, item));
+    } else if (value !== undefined && value !== "") {
+      params.set(key, String(value));
+    }
+  }
+  const query = params.toString();
+  return requestJson<LandlordRentalInterest[]>(
+    `/api/v1/users/me/received-rental-interests${query === "" ? "" : `?${query}`}`,
+    {
+      headers: { Authorization: "Bearer " + accessToken },
+    },
+  );
+}
+
+export function updateRentalInterestStatus(
+  accessToken: string,
+  interestId: number,
+  status: "contacted" | "invited_to_apply" | "converted",
+): Promise<LandlordRentalInterest> {
+  return requestJson<LandlordRentalInterest>(
+    `/api/v1/rental-interests/${interestId}/status`,
+    {
+      method: "PATCH",
+      headers: { Authorization: "Bearer " + accessToken },
+      body: JSON.stringify({ status }),
+    },
+  );
+}
+
+export function getMyRentalInterestNotifications(
+  accessToken: string,
+): Promise<RentalInterestNotification[]> {
+  return requestJson<RentalInterestNotification[]>(
+    "/api/v1/users/me/rental-interest-notifications",
+    {
+      headers: { Authorization: "Bearer " + accessToken },
+    },
+  );
+}
+
+export function markRentalInterestNotificationRead(
+  accessToken: string,
+  notificationId: number,
+): Promise<RentalInterestNotification> {
+  return requestJson<RentalInterestNotification>(
+    `/api/v1/users/me/rental-interest-notifications/${notificationId}/read`,
+    {
+      method: "PATCH",
+      headers: { Authorization: "Bearer " + accessToken },
+    },
+  );
+}
+
+export function getSavedListingStatus(
+  accessToken: string,
+  listingId: number,
+): Promise<SavedListingStatus> {
+  return requestJson<SavedListingStatus>(
+    `/api/v1/users/me/saved-listings/${listingId}`,
+    {
+      headers: {
+        Authorization: "Bearer " + accessToken,
+      },
+    },
+  );
+}
+
+export function saveListing(
+  accessToken: string,
+  listingId: number,
+): Promise<SavedListingStatus> {
+  return requestJson<SavedListingStatus>(
+    `/api/v1/users/me/saved-listings/${listingId}`,
+    {
+      method: "PUT",
+      headers: {
+        Authorization: "Bearer " + accessToken,
+      },
+    },
+  );
+}
+
+export function deleteSavedListing(
+  accessToken: string,
+  listingId: number,
+): Promise<void> {
+  return requestJson<void>(
+    `/api/v1/users/me/saved-listings/${listingId}`,
     {
       method: "DELETE",
       headers: {

@@ -1,6 +1,10 @@
 import type { ChangeEvent } from "react";
 
+import GoogleAddressSearch, {
+  type GoogleAddressSelection,
+} from "./GoogleAddressSearch";
 import type { Amenity } from "../types/listing";
+import "./SearchFilters.css";
 
 export type ListingFilters = {
   location: string;
@@ -12,8 +16,14 @@ export type ListingFilters = {
 
 type SearchFiltersProps = {
   amenities: Amenity[];
+  availableBy: string;
   filters: ListingFilters;
+  onAvailabilityChange: (value: string) => void;
   onChange: (filters: ListingFilters) => void;
+  onLocationSelected: (selection: GoogleAddressSelection) => void;
+  onRadiusChange: (radius: 5 | 10) => void;
+  radius: 5 | 10;
+  hasLocationSelection: boolean;
 };
 
 const fieldStyle = {
@@ -30,8 +40,14 @@ const fieldStyle = {
 
 export default function SearchFilters({
   amenities,
+  availableBy,
   filters,
+  onAvailabilityChange,
   onChange,
+  onLocationSelected,
+  onRadiusChange,
+  radius,
+  hasLocationSelection,
 }: SearchFiltersProps) {
   function updateField(
     field: keyof ListingFilters,
@@ -63,30 +79,57 @@ export default function SearchFilters({
   return (
     <section
       aria-label="Filter listings"
+      className="search-filters"
       style={{
         background: "white",
         border: "1px solid #e3e7ed",
         borderRadius: 14,
         display: "grid",
         gap: 16,
-        gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
         marginBottom: 24,
         padding: 20,
       }}
     >
-      <label style={{ color: "#344054", display: "grid", gap: 6 }}>
-        Location
-        <input
-          autoComplete="address-level2"
-          onChange={(event) => updateField("location", event.currentTarget.value)}
-          placeholder="Suburb or area"
-          style={fieldStyle}
-          type="search"
+      <label
+        className="search-filter-field"
+        style={{ color: "#344054", display: "grid", gap: 6 }}
+      >
+        Suburb, city or province
+        <GoogleAddressSearch
+          onChange={(value) => updateField("location", value)}
+          onResultSelected={onLocationSelected}
           value={filters.location}
         />
       </label>
 
-      <label style={{ color: "#344054", display: "grid", gap: 6 }}>
+      <label
+        className="search-filter-field"
+        style={{ color: "#344054", display: "grid", gap: 6 }}
+      >
+        Search radius
+        <select
+          disabled={!hasLocationSelection}
+          onChange={(event) =>
+            onRadiusChange(event.currentTarget.value === "10" ? 10 : 5)
+          }
+          style={fieldStyle}
+          value={radius}
+        >
+          <option value={5}>Within 5 km</option>
+          <option value={10}>Within 10 km</option>
+        </select>
+        {!hasLocationSelection && (
+          <small>Select a Google Maps location to enable radius search.</small>
+        )}
+        {hasLocationSelection && (
+          <small>Radius matches use private listing coordinates.</small>
+        )}
+      </label>
+
+      <label
+        className="search-filter-field"
+        style={{ color: "#344054", display: "grid", gap: 6 }}
+      >
         Room type
         <select
           onChange={(event) => updateField("roomType", event.currentTarget.value)}
@@ -101,7 +144,10 @@ export default function SearchFilters({
         </select>
       </label>
 
-      <label style={{ color: "#344054", display: "grid", gap: 6 }}>
+      <label
+        className="search-filter-field"
+        style={{ color: "#344054", display: "grid", gap: 6 }}
+      >
         Minimum monthly rent
         <input
           min="0"
@@ -113,7 +159,10 @@ export default function SearchFilters({
         />
       </label>
 
-      <label style={{ color: "#344054", display: "grid", gap: 6 }}>
+      <label
+        className="search-filter-field"
+        style={{ color: "#344054", display: "grid", gap: 6 }}
+      >
         Maximum monthly rent
         <input
           min="0"
@@ -125,7 +174,22 @@ export default function SearchFilters({
         />
       </label>
 
+      <label
+        className="search-filter-field"
+        style={{ color: "#344054", display: "grid", gap: 6 }}
+      >
+        Available on or before
+        <input
+          onChange={(event) => onAvailabilityChange(event.currentTarget.value)}
+          style={fieldStyle}
+          type="date"
+          value={availableBy}
+        />
+        <small>Leave blank to include any availability date.</small>
+      </label>
+
       <fieldset
+        className="search-filter-amenities"
         style={{
           border: 0,
           display: "grid",

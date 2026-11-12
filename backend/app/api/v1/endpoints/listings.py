@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Response
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -23,10 +23,36 @@ def get_listing_service(db: Session = Depends(get_db)) -> ListingService:
 
 @router.get("", response_model=list[PublicListingResponse])
 def list_public_listings(
+    latitude: float | None = Query(default=None, ge=-90, le=90),
+    longitude: float | None = Query(default=None, ge=-180, le=180),
+    radius_km: int | None = Query(default=None, ge=5, le=10),
     service: ListingService = Depends(get_listing_service),
 ) -> list[PublicListingResponse]:
     try:
-        return service.list_public_listings()
+        if latitude is None and longitude is None and radius_km is None:
+            return service.list_public_listings()
+        if latitude is None or longitude is None or radius_km is None:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "Latitude, longitude, and radius_km must be provided together."
+                ),
+            )
+        if radius_km not in {5, 10}:
+            raise HTTPException(
+                status_code=422,
+                detail="radius_km must be 5 or 10.",
+            )
+        return service.list_public_listings(
+            center=(latitude, longitude),
+            radius_km=radius_km,
+        )
+    except GooglePlacesError as exc:
+        logger.exception("Failed to resolve listings for radius search")
+        raise HTTPException(
+            status_code=503,
+            detail="Map locations are temporarily unavailable for radius search.",
+        ) from exc
     except SQLAlchemyError as exc:
         logger.exception("Failed to retrieve public listings")
         raise HTTPException(

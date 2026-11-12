@@ -9,15 +9,19 @@ from sqlalchemy.exc import IntegrityError
 
 
 class WhatsAppMigrationTests(unittest.TestCase):
-    def test_migration_adds_routing_tables_and_unique_provider_ids(self) -> None:
-        engine = create_engine("sqlite:///:memory:")
+    @staticmethod
+    def load_migration() -> dict[str, object]:
         migration_path = (
             Path(__file__).resolve().parents[1]
             / "migrations"
             / "versions"
-            / "20261105_11_whatsapp_messaging.py"
+            / "20261111_15_whatsapp_messaging.py"
         )
-        migration = runpy.run_path(str(migration_path))
+        return runpy.run_path(str(migration_path))
+
+    def test_migration_adds_routing_tables_and_unique_provider_ids(self) -> None:
+        engine = create_engine("sqlite:///:memory:")
+        migration = self.load_migration()
 
         with engine.begin() as connection:
             connection.execute(
@@ -37,6 +41,7 @@ class WhatsAppMigrationTests(unittest.TestCase):
                 text("CREATE TABLE messages (message_id INTEGER PRIMARY KEY)"),
             )
             with Operations.context(MigrationContext.configure(connection)):
+                migration["upgrade"]()
                 migration["upgrade"]()
 
             inspector = inspect(connection)
@@ -92,6 +97,46 @@ class WhatsAppMigrationTests(unittest.TestCase):
                 {
                     column["name"]
                     for column in inspector.get_columns("conversations")
+                },
+            )
+
+        engine.dispose()
+
+    def test_partial_legacy_schema_fails_without_adding_objects(self) -> None:
+        engine = create_engine("sqlite:///:memory:")
+        migration = self.load_migration()
+
+        with engine.begin() as connection:
+            connection.execute(
+                text("CREATE TABLE conversations (conversation_id INTEGER)"),
+            )
+            connection.execute(
+                text("CREATE TABLE users (user_id INTEGER PRIMARY KEY)"),
+            )
+            connection.execute(
+                text(
+                    "CREATE TABLE messages (message_id INTEGER PRIMARY KEY)",
+                ),
+            )
+            connection.execute(
+                text("CREATE TABLE whatsapp_contacts (user_id INTEGER PRIMARY KEY)"),
+            )
+
+            with Operations.context(MigrationContext.configure(connection)):
+                with self.assertRaises(RuntimeError):
+                    migration["upgrade"]()
+
+            self.assertNotIn(
+                "whatsapp_messages",
+                inspect(connection).get_table_names(),
+            )
+            self.assertNotIn(
+                "whatsapp_route_code",
+                {
+                    column["name"]
+                    for column in inspect(connection).get_columns(
+                        "conversations",
+                    )
                 },
             )
 

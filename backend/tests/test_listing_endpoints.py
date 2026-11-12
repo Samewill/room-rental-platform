@@ -13,6 +13,7 @@ from app.schemas.listing import ListingResponse
 from app.schemas.location import PublicListingLocationResponse
 from app.services.google_places import (
     GooglePlacesConfigurationError,
+    GooglePlacesError,
     GooglePlacesLookupError,
 )
 
@@ -61,6 +62,51 @@ class ListingEndpointTests(unittest.TestCase):
             [1, 2],
         )
         self.service.list_public_listings.assert_called_once_with()
+
+    def test_list_public_listings_passes_complete_radius_filter(self) -> None:
+        self.service.list_public_listings.return_value = [self.make_listing(2)]
+
+        response = self.client.get(
+            "/api/v1/listings",
+            params={
+                "latitude": "-26.2",
+                "longitude": "28.05",
+                "radius_km": "10",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.service.list_public_listings.assert_called_once_with(
+            center=(-26.2, 28.05),
+            radius_km=10,
+        )
+
+    def test_list_public_listings_rejects_partial_radius_filter(self) -> None:
+        response = self.client.get(
+            "/api/v1/listings",
+            params={"latitude": "-26.2", "radius_km": "5"},
+        )
+
+        self.assertEqual(response.status_code, 422)
+        self.service.list_public_listings.assert_not_called()
+
+    def test_list_public_listings_returns_unavailable_on_place_lookup_error(
+        self,
+    ) -> None:
+        self.service.list_public_listings.side_effect = GooglePlacesError(
+            "provider unavailable",
+        )
+
+        response = self.client.get(
+            "/api/v1/listings",
+            params={
+                "latitude": "-26.2",
+                "longitude": "28.05",
+                "radius_km": "5",
+            },
+        )
+
+        self.assertEqual(response.status_code, 503)
 
     def test_list_public_listings_returns_service_unavailable_on_database_error(
         self,

@@ -26,3 +26,30 @@ coordinates rounded to two decimal places, not the stored values. The public
 Room Details map labels its marker as approximate. Place IDs are not included
 in public listing responses. Do not return exact coordinates in public API
 responses without an explicit, reviewed privacy policy.
+
+## Future rental interest
+
+Migration `20261111_18` adds:
+
+- `rental_interest_opportunities`, linked to an existing listing and storing
+  its expected availability window, optional room count, active-registration
+  limit, and open/closed state.
+- `rental_interests`, storing a tenant's expected move-in date, rental
+  duration, monthly budget, room-type preference, required amenities, current
+  status, registration timestamp, and expiry.
+- `rental_interest_amenities`, linking registrations to the existing amenity
+  catalog.
+- `rental_interest_status_history`, recording status transitions and their
+  actor (null for scheduled system actions).
+
+Partial unique indexes prevent more than one open opportunity per listing and
+more than one active/waitlisted/contacted/invited registration per tenant and
+opportunity. Withdrawn, expired, converted, and closed registrations remain
+historical rows and do not block a later registration. A registration is not
+a reservation, and no payment data is stored.
+
+Migration `20261111_19` adds `rental_interest_notifications`, which stores
+recipient-scoped in-app updates and the deduplicated WhatsApp delivery outbox.
+An event key derived from the status-history row prevents duplicate
+notifications. Delivery state, provider IDs, and errors are recorded without
+storing an additional phone number or exposing one in the notification payload.

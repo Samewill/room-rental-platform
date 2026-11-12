@@ -25,6 +25,17 @@ class SavedSearchRepository:
         )
         return list(self._db.scalars(statement).all())
 
+    def get_for_tenant(
+        self,
+        saved_search_id: int,
+        tenant_id: int,
+    ) -> SavedSearch | None:
+        statement = select(SavedSearch).where(
+            SavedSearch.saved_search_id == saved_search_id,
+            SavedSearch.tenant_id == tenant_id,
+        )
+        return self._db.scalar(statement)
+
     def delete_for_tenant(
         self,
         saved_search_id: int,

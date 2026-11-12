@@ -77,6 +77,73 @@ class ListingServiceTests(unittest.TestCase):
 
         self.assertEqual(result, [])
 
+    def test_radius_search_uses_stored_coordinates_without_exposing_them(
+        self,
+    ) -> None:
+        nearby = self.make_listing(1)
+        nearby.latitude = -29.04
+        nearby.longitude = 24
+        outside = self.make_listing(2)
+        outside.latitude = -29.06
+        outside.longitude = 24
+        self.repository.list_all.return_value = [nearby, outside]
+        self.repository.get_latest_moderation_decisions.return_value = {
+            1: "approved",
+            2: "approved",
+        }
+
+        result = self.service.list_public_listings(
+            center=(-29, 24),
+            radius_km=5,
+        )
+
+        self.assertEqual([listing.listing_id for listing in result], [1])
+        self.assertEqual(result[0].approximate_latitude, -29.04)
+        self.assertFalse(hasattr(result[0], "latitude"))
+        self.google_places.get_location.assert_not_called()
+
+    def test_radius_search_resolves_place_ids_and_includes_nearby_places(
+        self,
+    ) -> None:
+        listing = self.make_listing(1)
+        listing.google_place_id = "google-place-id"
+        self.repository.list_all.return_value = [listing]
+        self.repository.get_latest_moderation_decisions.return_value = {
+            1: "approved",
+        }
+        self.google_places.get_location.return_value = (-29.04, 24)
+
+        result = self.service.list_public_listings(
+            center=(-29, 24),
+            radius_km=5,
+        )
+
+        self.assertEqual([item.listing_id for item in result], [1])
+        self.assertEqual(result[0].approximate_latitude, -29.04)
+        self.assertFalse(hasattr(result[0], "google_place_id"))
+        self.assertFalse(hasattr(result[0], "latitude"))
+        self.assertFalse(hasattr(result[0], "longitude"))
+        self.google_places.get_location.assert_called_once_with(
+            "google-place-id",
+        )
+
+    def test_radius_search_excludes_listings_without_any_map_location(
+        self,
+    ) -> None:
+        listing = self.make_listing(1)
+        self.repository.list_all.return_value = [listing]
+        self.repository.get_latest_moderation_decisions.return_value = {
+            1: "approved",
+        }
+
+        result = self.service.list_public_listings(
+            center=(-29, 24),
+            radius_km=10,
+        )
+
+        self.assertEqual(result, [])
+        self.google_places.get_location.assert_not_called()
+
     def test_list_passes_no_candidates_when_no_listings_are_active(
         self,
     ) -> None:

@@ -3,16 +3,23 @@ import { useEffect, useState } from "react";
 import {
   cancelContactRequest,
   createReview,
+  deleteSavedListing,
   deleteSavedSearch,
   getMyContactRequests,
   getMyReviews,
+  getMySavedListings,
   getMySavedSearches,
+  updateSavedSearchAlerts,
   type ContactRequest,
   type Review,
   type SavedSearch,
   type UserProfile,
 } from "../api";
 import AppLink from "../components/AppLink";
+import TenantFutureRentalOpportunitiesPanel from "../components/TenantFutureRentalOpportunitiesPanel";
+import RentalInterestNotificationsPanel from "../components/RentalInterestNotificationsPanel";
+import TenantRentalInterestsPanel from "../components/TenantRentalInterestsPanel";
+import type { Listing } from "../types/listing";
 import "./DashboardPage.css";
 
 export type DashboardRole = "tenant" | "landlord" | "admin";
@@ -103,6 +110,7 @@ export default function DashboardPage({
   onOpenReports,
 }: DashboardPageProps) {
   const content = dashboardContent[role];
+  const [rentalInterestRefreshKey, setRentalInterestRefreshKey] = useState(0);
   const [contactRequests, setContactRequests] = useState<ContactRequest[]>([]);
   const [contactRequestsError, setContactRequestsError] = useState<
     string | null
@@ -144,6 +152,17 @@ export default function DashboardPage({
   const [savedSearchActionError, setSavedSearchActionError] = useState<
     string | null
   >(null);
+  const [savedListings, setSavedListings] = useState<Listing[]>([]);
+  const [savedListingsError, setSavedListingsError] = useState<string | null>(
+    null,
+  );
+  const [isLoadingSavedListings, setIsLoadingSavedListings] = useState(true);
+  const [deletingSavedListingId, setDeletingSavedListingId] = useState<
+    number | null
+  >(null);
+  const [updatingAlertSearchId, setUpdatingAlertSearchId] = useState<
+    number | null
+  >(null);
 
   useEffect(() => {
     if (role !== "tenant") {
@@ -177,6 +196,43 @@ export default function DashboardPage({
     }
 
     void loadContactRequests();
+    return () => {
+      active = false;
+    };
+  }, [accessToken, role]);
+
+  useEffect(() => {
+    if (role !== "tenant") {
+      return;
+    }
+
+    let active = true;
+    setSavedListings([]);
+    setSavedListingsError(null);
+    setIsLoadingSavedListings(true);
+
+    async function loadSavedListings(): Promise<void> {
+      try {
+        const listings = await getMySavedListings(accessToken);
+        if (active) {
+          setSavedListings(listings);
+        }
+      } catch (error: unknown) {
+        if (active) {
+          setSavedListingsError(
+            error instanceof Error
+              ? error.message
+              : "Your saved listings could not be loaded.",
+          );
+        }
+      } finally {
+        if (active) {
+          setIsLoadingSavedListings(false);
+        }
+      }
+    }
+
+    void loadSavedListings();
     return () => {
       active = false;
     };
@@ -299,6 +355,53 @@ export default function DashboardPage({
       );
     } finally {
       setDeletingSavedSearchId(null);
+    }
+  }
+
+  async function handleDeleteSavedListing(listingId: number): Promise<void> {
+    setSavedSearchActionError(null);
+    setDeletingSavedListingId(listingId);
+    try {
+      await deleteSavedListing(accessToken, listingId);
+      setSavedListings((listings) =>
+        listings.filter((listing) => listing.listing_id !== listingId),
+      );
+    } catch (error: unknown) {
+      setSavedSearchActionError(
+        error instanceof Error
+          ? error.message
+          : "The saved listing could not be removed.",
+      );
+    } finally {
+      setDeletingSavedListingId(null);
+    }
+  }
+
+  async function handleUpdateSearchAlerts(
+    searchId: number,
+    alertsEnabled: boolean,
+  ): Promise<void> {
+    setSavedSearchActionError(null);
+    setUpdatingAlertSearchId(searchId);
+    try {
+      const updatedSearch = await updateSavedSearchAlerts(
+        accessToken,
+        searchId,
+        alertsEnabled,
+      );
+      setSavedSearches((searches) =>
+        searches.map((search) =>
+          search.saved_search_id === searchId ? updatedSearch : search,
+        ),
+      );
+    } catch (error: unknown) {
+      setSavedSearchActionError(
+        error instanceof Error
+          ? error.message
+          : "The WhatsApp alert preference could not be updated.",
+      );
+    } finally {
+      setUpdatingAlertSearchId(null);
     }
   }
 
@@ -465,6 +568,22 @@ export default function DashboardPage({
 
           <div className="tenant-content-grid">
             <div className="tenant-main-column">
+              <RentalInterestNotificationsPanel
+                accessToken={accessToken}
+                onNavigate={onNavigate}
+              />
+              <TenantFutureRentalOpportunitiesPanel
+                accessToken={accessToken}
+                onNavigate={onNavigate}
+                onRegistered={() =>
+                  setRentalInterestRefreshKey((current) => current + 1)
+                }
+              />
+              <TenantRentalInterestsPanel
+                accessToken={accessToken}
+                onNavigate={onNavigate}
+                refreshKey={rentalInterestRefreshKey}
+              />
               <section
                 aria-labelledby="contact-requests-heading"
                 className="tenant-panel tenant-requests-panel"
@@ -726,6 +845,90 @@ export default function DashboardPage({
               </section>
 
               <section
+                aria-labelledby="saved-listings-heading"
+                className="tenant-panel"
+              >
+                <div className="tenant-panel-heading">
+                  <div>
+                    <p className="tenant-eyebrow tenant-eyebrow-muted">
+                      KEEP YOUR FAVOURITES
+                    </p>
+                    <h2 id="saved-listings-heading">Saved rooms</h2>
+                  </div>
+                  <AppLink
+                    className="tenant-panel-link"
+                    href="/"
+                    onNavigate={onNavigate}
+                  >
+                    Browse rooms <span aria-hidden="true">→</span>
+                  </AppLink>
+                </div>
+
+                {isLoadingSavedListings && (
+                  <p className="tenant-inline-state" role="status">
+                    Loading your saved rooms…
+                  </p>
+                )}
+                {savedListingsError !== null && (
+                  <p className="message message-error" role="alert">
+                    {savedListingsError}
+                  </p>
+                )}
+                {!isLoadingSavedListings &&
+                  savedListingsError === null &&
+                  savedListings.length === 0 && (
+                    <div className="tenant-saved-empty">
+                      <p>Save rooms you like to find them here later.</p>
+                    </div>
+                  )}
+                {!isLoadingSavedListings &&
+                  savedListingsError === null &&
+                  savedListings.length > 0 && (
+                    <ul className="tenant-saved-search-list">
+                      {savedListings.map((listing) => (
+                        <li key={listing.listing_id}>
+                          <div>
+                            <strong>{listing.title}</strong>
+                            <time>
+                              {listing.area_name ?? listing.address} · R
+                              {Number(listing.monthly_rent).toLocaleString(
+                                "en-ZA",
+                              )}
+                              /month
+                            </time>
+                          </div>
+                          <div className="tenant-saved-search-actions">
+                            <button
+                              className="tenant-review-button"
+                              onClick={() =>
+                                onNavigate(`/listings/${listing.listing_id}`)
+                              }
+                              type="button"
+                            >
+                              View room
+                            </button>
+                            <button
+                              className="tenant-cancel-button"
+                              disabled={deletingSavedListingId !== null}
+                              onClick={() =>
+                                void handleDeleteSavedListing(
+                                  listing.listing_id,
+                                )
+                              }
+                              type="button"
+                            >
+                              {deletingSavedListingId === listing.listing_id
+                                ? "Removing…"
+                                : "Remove"}
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+              </section>
+
+              <section
                 aria-labelledby="saved-searches-heading"
                 className="tenant-panel tenant-saved-searches"
               >
@@ -799,6 +1002,24 @@ export default function DashboardPage({
                               type="button"
                             >
                               Search again
+                            </button>
+                            <button
+                              className="tenant-review-button"
+                              disabled={updatingAlertSearchId !== null}
+                              onClick={() =>
+                                void handleUpdateSearchAlerts(
+                                  search.saved_search_id,
+                                  !search.alerts_enabled,
+                                )
+                              }
+                              type="button"
+                            >
+                              {updatingAlertSearchId ===
+                              search.saved_search_id
+                                ? "Updating…"
+                                : search.alerts_enabled
+                                  ? "Turn alerts off"
+                                  : "Turn WhatsApp alerts on"}
                             </button>
                             <button
                               className="tenant-cancel-button"

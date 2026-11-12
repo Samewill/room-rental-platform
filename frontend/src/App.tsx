@@ -55,6 +55,13 @@ function getDashboardRole(roles: string[]): DashboardRole {
   throw new Error("Your account has no supported role. Please contact support.");
 }
 
+function getListingReturnPath(): string | null {
+  const returnTo = new URLSearchParams(window.location.search).get("returnTo");
+  return returnTo !== null && /^\/listings\/\d+\/?$/.test(returnTo)
+    ? returnTo
+    : null;
+}
+
 function App() {
   const [pathname, setPathname] = useState(window.location.pathname);
   const [mode, setMode] = useState<AuthMode>(
@@ -206,6 +213,7 @@ function App() {
 
     try {
       if (mode === "register") {
+        const returnPath = getListingReturnPath();
         await registerAccount({
           full_name: fields.fullName,
           phone_no: fields.phoneNo,
@@ -222,7 +230,11 @@ function App() {
           ...emptyForm,
           email: currentFields.email,
         }));
-        navigate("/login");
+        navigate(
+          returnPath === null
+            ? "/login"
+            : `/login?returnTo=${encodeURIComponent(returnPath)}`,
+        );
         setNotice("Your account is ready. Sign in with your new credentials.");
         return;
       }
@@ -242,7 +254,12 @@ function App() {
       setFields(emptyForm);
       setSessionRestoreError(null);
       setSessionNotice(null);
-      navigate(`/${dashboardRole}`);
+      const returnPath = getListingReturnPath();
+      navigate(
+        currentProfile.roles.includes("tenant") && returnPath !== null
+          ? returnPath
+          : `/${dashboardRole}`,
+      );
     } catch (error: unknown) {
       setErrorMessage(
         error instanceof Error
@@ -290,6 +307,7 @@ function App() {
           }
           isAuthReady={isAuthReady}
           isAuthenticated={profile !== null}
+          isTenant={profile?.roles.includes("tenant") === true}
           listingId={listingId}
           onNavigate={navigate}
           onReportListing={

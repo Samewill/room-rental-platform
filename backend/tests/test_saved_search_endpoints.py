@@ -13,6 +13,7 @@ from app.api.v1.endpoints.saved_searches import (
 from app.api.v1.router import api_router
 from app.models.saved_search import SavedSearch
 from app.models.user import User
+from app.services.saved_search_service import SavedSearchWhatsAppNotEnabledError
 
 
 class SavedSearchEndpointTests(unittest.TestCase):
@@ -39,6 +40,7 @@ class SavedSearchEndpointTests(unittest.TestCase):
             room_type="single_room",
             minimum_rent=1000,
             maximum_rent=5000,
+            alerts_enabled=False,
             created_at=datetime(2026, 11, 2, 9, 0),
         )
 
@@ -101,6 +103,60 @@ class SavedSearchEndpointTests(unittest.TestCase):
         )
 
         response = self.client.get("/api/v1/users/me/saved-searches")
+
+        self.assertEqual(response.status_code, 503)
+
+    def test_update_saved_search_alerts_uses_authenticated_tenant(self) -> None:
+        saved_search = self.make_saved_search()
+        saved_search.alerts_enabled = True
+        self.service.update_alerts_for_tenant.return_value = saved_search
+
+        response = self.client.patch(
+            "/api/v1/users/me/saved-searches/4/alerts",
+            json={"alerts_enabled": True},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["alerts_enabled"])
+        self.service.update_alerts_for_tenant.assert_called_once()
+        self.assertEqual(
+            self.service.update_alerts_for_tenant.call_args.args[0:2],
+            (self.tenant.user_id, 4),
+        )
+
+    def test_update_saved_search_alerts_returns_not_found_when_unowned(
+        self,
+    ) -> None:
+        self.service.update_alerts_for_tenant.return_value = None
+
+        response = self.client.patch(
+            "/api/v1/users/me/saved-searches/4/alerts",
+            json={"alerts_enabled": True},
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_update_saved_search_alerts_requires_whatsapp_consent(self) -> None:
+        self.service.update_alerts_for_tenant.side_effect = (
+            SavedSearchWhatsAppNotEnabledError("WhatsApp is not enabled.")
+        )
+
+        response = self.client.patch(
+            "/api/v1/users/me/saved-searches/4/alerts",
+            json={"alerts_enabled": True},
+        )
+
+        self.assertEqual(response.status_code, 409)
+
+    def test_update_saved_search_alerts_handles_database_error(self) -> None:
+        self.service.update_alerts_for_tenant.side_effect = SQLAlchemyError(
+            "database failure",
+        )
+
+        response = self.client.patch(
+            "/api/v1/users/me/saved-searches/4/alerts",
+            json={"alerts_enabled": False},
+        )
 
         self.assertEqual(response.status_code, 503)
 

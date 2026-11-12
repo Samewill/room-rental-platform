@@ -1,0 +1,30 @@
+.search-filters {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.search-filters > *,
+.search-filter-field,
+.search-filter-amenities,
+.search-filter-field .google-address-search,
+.search-filter-field .google-address-search-input,
+.search-filter-field .google-address-autocomplete {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.search-filter-field small {
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 900px) {
+  .search-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .search-filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

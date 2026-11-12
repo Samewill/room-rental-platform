@@ -1,20 +1,35 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   buildApiUrl,
   createSavedSearch,
+  getPublicListingMapLocation,
   getAmenities,
   type SavedSearchCreateRequest,
   type SavedSearchRoomType,
 } from "../api";
 import type { UserProfile } from "../api";
 import AppLink from "../components/AppLink";
+import type { GoogleAddressSelection } from "../components/GoogleAddressSearch";
+import ListingResultsMap, {
+  type ListingMapPoint,
+} from "../components/ListingResultsMap";
 import ListingGrid from "../components/ListingGrid";
 import SearchFilters, {
   type ListingFilters,
 } from "../components/SearchFilters";
 import type { Listing } from "../components/ListingCard";
 import type { Amenity, Area } from "../types/listing";
+
+type MapCoordinates = {
+  latitude: number;
+  longitude: number;
+};
+
+function getAvailabilityDateFromSearch(search: string): string {
+  const value = new URLSearchParams(search).get("availableBy") ?? "";
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : "";
+}
 
 function isListing(value: unknown): value is Listing {
   if (typeof value !== "object" || value === null) {
@@ -141,10 +156,30 @@ export default function ListingsPage({
   const [filters, setFilters] = useState<ListingFilters>(() =>
     getFiltersFromSearch(window.location.search),
   );
+  const [availableBy, setAvailableBy] = useState(() =>
+    getAvailabilityDateFromSearch(window.location.search),
+  );
+  const [searchCenter, setSearchCenter] =
+    useState<GoogleAddressSelection | null>(null);
+  const [radius, setRadius] = useState<5 | 10>(5);
+  const [radiusMatchedListingIds, setRadiusMatchedListingIds] =
+    useState<Set<number> | null>(null);
+  const [isSearchingRadius, setIsSearchingRadius] = useState(false);
+  const [radiusSearchRetryKey, setRadiusSearchRetryKey] = useState(0);
+  const [radiusSearchError, setRadiusSearchError] = useState<string | null>(
+    null,
+  );
+  const [listingMapLocations, setListingMapLocations] = useState<
+    Map<number, MapCoordinates>
+  >(() => new Map());
+  const mapLocationAttemptedIds = useRef(new Set<number>());
+  const [isLoadingMapLocations, setIsLoadingMapLocations] = useState(false);
+  const [mapLocationError, setMapLocationError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
   const [isSavingSearch, setIsSavingSearch] = useState(false);
+  const [enableWhatsAppAlerts, setEnableWhatsAppAlerts] = useState(false);
   const [savedSearchError, setSavedSearchError] = useState<string | null>(null);
   const [savedSearchNotice, setSavedSearchNotice] = useState<string | null>(
     null,
@@ -188,6 +223,27 @@ export default function ListingsPage({
       setListings(listingsPayload);
       setAreas(areasPayload);
       setAmenities(amenitiesPayload);
+      setListingMapLocations(
+        new Map(
+          listingsPayload.flatMap((listing) =>
+            typeof listing.approximate_latitude === "number" &&
+            Number.isFinite(listing.approximate_latitude) &&
+            typeof listing.approximate_longitude === "number" &&
+            Number.isFinite(listing.approximate_longitude)
+              ? [
+                  [
+                    listing.listing_id,
+                    {
+                      latitude: listing.approximate_latitude,
+                      longitude: listing.approximate_longitude,
+                    },
+                  ] as const,
+                ]
+              : [],
+          ),
+        ),
+      );
+      setMapLocationError(null);
     } catch (requestError) {
       if (signal.aborted) {
         return;
@@ -212,6 +268,92 @@ export default function ListingsPage({
     return () => controller.abort();
   }, [loadListings, reloadKey]);
 
+  useEffect(() => {
+    if (searchCenter === null) {
+      setRadiusMatchedListingIds(null);
+      setIsSearchingRadius(false);
+      setRadiusSearchError(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    const params = new URLSearchParams({
+      latitude: String(searchCenter.latitude),
+      longitude: String(searchCenter.longitude),
+      radius_km: String(radius),
+    });
+    setRadiusMatchedListingIds(null);
+    setIsSearchingRadius(true);
+    setRadiusSearchError(null);
+
+    async function searchWithinRadius(): Promise<void> {
+      try {
+        const response = await fetch(
+          buildApiUrl(`/api/v1/listings?${params.toString()}`),
+          { signal: controller.signal },
+        );
+        if (!response.ok) {
+          const errorPayload: unknown = await response.json();
+          const detail =
+            typeof errorPayload === "object" &&
+            errorPayload !== null &&
+            "detail" in errorPayload &&
+            typeof errorPayload.detail === "string"
+              ? errorPayload.detail
+              : `Radius search failed with status ${response.status}.`;
+          throw new Error(detail);
+        }
+
+        const payload: unknown = await response.json();
+        if (!Array.isArray(payload) || !payload.every(isListing)) {
+          throw new Error("The radius search response has an unexpected format.");
+        }
+        if (controller.signal.aborted) {
+          return;
+        }
+        setRadiusMatchedListingIds(
+          new Set(payload.map((listing) => listing.listing_id)),
+        );
+        setListingMapLocations((current) => {
+          const next = new Map(current);
+          for (const listing of payload) {
+            if (
+              typeof listing.approximate_latitude === "number" &&
+              Number.isFinite(listing.approximate_latitude) &&
+              typeof listing.approximate_longitude === "number" &&
+              Number.isFinite(listing.approximate_longitude)
+            ) {
+              next.set(listing.listing_id, {
+                latitude: listing.approximate_latitude,
+                longitude: listing.approximate_longitude,
+              });
+            }
+          }
+          return next;
+        });
+      } catch (searchError: unknown) {
+        if (!controller.signal.aborted) {
+          setRadiusSearchError(
+            searchError instanceof Error
+              ? searchError.message
+              : "Radius search could not be completed.",
+          );
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsSearchingRadius(false);
+        }
+      }
+    }
+
+    void searchWithinRadius();
+    return () => controller.abort();
+  }, [radius, radiusSearchRetryKey, searchCenter]);
+
+  useEffect(() => {
+    mapLocationAttemptedIds.current.clear();
+  }, [reloadKey]);
+
   const filteredListings = useMemo(() => {
     const locationQuery = filters.location.trim().toLocaleLowerCase();
     const roomTypeQuery = filters.roomType.trim().toLocaleLowerCase();
@@ -230,6 +372,7 @@ export default function ListingsPage({
       }
 
       const matchesLocation =
+        searchCenter !== null ||
         locationQuery === "" ||
         listing.address.toLocaleLowerCase().includes(locationQuery) ||
         listing.area_name?.toLocaleLowerCase().includes(locationQuery) ===
@@ -247,16 +390,123 @@ export default function ListingsPage({
       const matchesAmenities = filters.amenities.every((amenity) =>
         listing.amenities.includes(amenity),
       );
+      const matchesRadius =
+        searchCenter === null ||
+        radiusMatchedListingIds?.has(listing.listing_id) === true;
+      const matchesAvailability =
+        availableBy === "" || listing.date_available <= availableBy;
 
       return (
         matchesLocation &&
         matchesRoomType &&
         matchesMinimumRent &&
         matchesMaximumRent &&
-        matchesAmenities
+        matchesAmenities &&
+        matchesRadius &&
+        matchesAvailability
       );
     });
-  }, [areas, filters, listings]);
+  }, [
+    areas,
+    availableBy,
+    filters,
+    listings,
+    radiusMatchedListingIds,
+    searchCenter,
+  ]);
+
+  useEffect(() => {
+    const unresolvedListings = filteredListings.filter(
+      (listing) =>
+        listing.has_map_location === true &&
+        !mapLocationAttemptedIds.current.has(listing.listing_id) &&
+        !listingMapLocations.has(listing.listing_id) &&
+        (typeof listing.approximate_latitude !== "number" ||
+          !Number.isFinite(listing.approximate_latitude) ||
+          typeof listing.approximate_longitude !== "number" ||
+          !Number.isFinite(listing.approximate_longitude)),
+    );
+    if (unresolvedListings.length === 0) {
+      setIsLoadingMapLocations(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    for (const listing of unresolvedListings) {
+      mapLocationAttemptedIds.current.add(listing.listing_id);
+    }
+    setIsLoadingMapLocations(true);
+    setMapLocationError(null);
+
+    let completed = false;
+    async function loadMissingLocations(): Promise<void> {
+      const results = await Promise.all(
+        unresolvedListings.map(async (listing) => {
+          try {
+            const location = await getPublicListingMapLocation(
+              listing.listing_id,
+              controller.signal,
+            );
+            return {
+              listingId: listing.listing_id,
+              point: {
+                latitude: location.approximate_latitude,
+                longitude: location.approximate_longitude,
+              },
+              error: null,
+            };
+          } catch (locationError: unknown) {
+            return {
+              listingId: listing.listing_id,
+              point: null,
+              error:
+                locationError instanceof Error
+                  ? locationError.message
+                  : "A listing map location could not be loaded.",
+            };
+          }
+        }),
+      );
+
+      if (controller.signal.aborted) {
+        return;
+      }
+      completed = true;
+
+      const resolvedLocations = results.filter(
+        (
+          result,
+        ): result is typeof result & {
+          point: MapCoordinates;
+        } => result.point !== null,
+      );
+      setListingMapLocations((current) => {
+        const next = new Map(current);
+        for (const result of resolvedLocations) {
+          next.set(result.listingId, result.point);
+        }
+        return next;
+      });
+
+      const failures = results.filter((result) => result.error !== null);
+      if (failures.length > 0) {
+        setMapLocationError(
+          `${failures.length} map location(s) could not be loaded. ${failures[0].error}`,
+        );
+      }
+      setIsLoadingMapLocations(false);
+    }
+
+    void loadMissingLocations();
+    return () => {
+      controller.abort();
+      if (!completed) {
+        for (const listing of unresolvedListings) {
+          mapLocationAttemptedIds.current.delete(listing.listing_id);
+        }
+      }
+    };
+  }, [filteredListings, listingMapLocations]);
 
   const hasActiveFilters =
     Object.values({
@@ -264,7 +514,38 @@ export default function ListingsPage({
       roomType: filters.roomType,
       minimumRent: filters.minimumRent,
       maximumRent: filters.maximumRent,
-    }).some((value) => value.trim() !== "") || filters.amenities.length > 0;
+      availableBy,
+    }).some((value) => value.trim() !== "") ||
+    filters.amenities.length > 0 ||
+    searchCenter !== null;
+  const hasAdvancedSearchFilters =
+    searchCenter !== null || availableBy !== "";
+
+  function selectSearchLocation(selection: GoogleAddressSelection): void {
+    setSearchCenter(selection);
+    setFilters((current) => ({
+      ...current,
+      location: selection.displayAddress ?? selection.address,
+    }));
+  }
+
+  const mapListings = useMemo(
+    () =>
+      filteredListings.flatMap((listing): ListingMapPoint[] => {
+        const coordinates = listingMapLocations.get(listing.listing_id);
+        return coordinates === undefined
+          ? []
+          : [
+              {
+                listingId: listing.listing_id,
+                title: listing.title,
+                monthlyRent: listing.monthly_rent,
+                ...coordinates,
+              },
+            ];
+      }),
+    [filteredListings, listingMapLocations],
+  );
 
   async function handleSaveSearch(): Promise<void> {
     if (accessToken === null || isSavingSearch) {
@@ -288,6 +569,9 @@ export default function ListingsPage({
     }
     if (filters.amenities.length > 0) {
       payload.amenities = filters.amenities;
+    }
+    if (enableWhatsAppAlerts) {
+      payload.alerts_enabled = true;
     }
 
     setIsSavingSearch(true);
@@ -520,23 +804,79 @@ export default function ListingsPage({
 
         {!isLoading && !error && (
           <>
+            {radiusSearchError !== null && (
+              <div role="alert">
+                <p>{radiusSearchError}</p>
+                <button
+                  onClick={() =>
+                    setRadiusSearchRetryKey((current) => current + 1)
+                  }
+                  type="button"
+                >
+                  Retry radius search
+                </button>
+              </div>
+            )}
             <SearchFilters
               amenities={amenities}
+              availableBy={availableBy}
               filters={filters}
-              onChange={setFilters}
+              hasLocationSelection={searchCenter !== null}
+              onAvailabilityChange={setAvailableBy}
+              onChange={(nextFilters) => {
+                if (nextFilters.location !== filters.location) {
+                  setSearchCenter(null);
+                }
+                setFilters(nextFilters);
+              }}
+              onLocationSelected={selectSearchLocation}
+              onRadiusChange={setRadius}
+              radius={radius}
             />
             {profile?.roles.includes("tenant") &&
               accessToken !== null &&
               hasActiveFilters && (
                 <div style={{ margin: "-8px 0 24px" }}>
-                  <button
-                    className="secondary-button"
-                    disabled={isSavingSearch}
-                    onClick={() => void handleSaveSearch()}
-                    type="button"
+                {!hasAdvancedSearchFilters && (
+                  <label
+                    style={{
+                      alignItems: "flex-start",
+                      display: "flex",
+                      gap: 8,
+                      marginBottom: 12,
+                    }}
                   >
-                    {isSavingSearch ? "Saving search…" : "Save this search"}
-                  </button>
+                    <input
+                      checked={enableWhatsAppAlerts}
+                      onChange={(event) =>
+                        setEnableWhatsAppAlerts(
+                          event.currentTarget.checked,
+                        )
+                      }
+                      type="checkbox"
+                    />
+                    <span>
+                      Send me a WhatsApp alert when a new approved room
+                      matches this search. Verified WhatsApp is required;
+                      you can turn alerts off from your dashboard.
+                    </span>
+                  </label>
+                )}
+                {hasAdvancedSearchFilters ? (
+                    <p role="status">
+                      Saved searches do not yet retain radius or availability
+                      date filters. Clear those filters to save this search.
+                    </p>
+                  ) : (
+                    <button
+                      className="secondary-button"
+                      disabled={isSavingSearch}
+                      onClick={() => void handleSaveSearch()}
+                      type="button"
+                    >
+                      {isSavingSearch ? "Saving search…" : "Save this search"}
+                    </button>
+                  )}
                   {savedSearchError !== null && (
                     <p role="alert">{savedSearchError}</p>
                   )}
@@ -565,7 +905,9 @@ export default function ListingsPage({
         {!isLoading &&
           !error &&
           listings.length > 0 &&
-          filteredListings.length === 0 && (
+          filteredListings.length === 0 &&
+          !(searchCenter !== null && isSearchingRadius) &&
+          radiusSearchError === null && (
             <p
               role="status"
               style={{
@@ -582,11 +924,36 @@ export default function ListingsPage({
             </p>
           )}
 
+        {!isLoading &&
+          !error &&
+          searchCenter !== null &&
+          isSearchingRadius &&
+          filteredListings.length === 0 && (
+            <p role="status">
+              Checking private listing locations within {radius} km…
+            </p>
+          )}
+
         {!isLoading && !error && filteredListings.length > 0 && (
           <>
             <p aria-live="polite" style={{ color: "#596579" }}>
               Showing {filteredListings.length} of {listings.length} rooms
             </p>
+            <ListingResultsMap
+              listings={mapListings}
+              onNavigate={onNavigate}
+              radius={radius}
+              searchCenter={searchCenter}
+            />
+            {isLoadingMapLocations && (
+              <p role="status">Loading approximate map locations…</p>
+            )}
+            {mapLocationError !== null && (
+              <p role="alert">
+                {mapLocationError} Those rooms may not appear on the map or
+                within radius-filtered results.
+              </p>
+            )}
             <ListingGrid
               listings={filteredListings}
               onNavigate={onNavigate}

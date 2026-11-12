@@ -1,3 +1,5 @@
+import logging
+
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -6,6 +8,10 @@ from app.models.listing import Listing
 from app.models.listing_moderation import ListingModeration
 from app.repositories.listing_repository import ListingRepository
 from app.schemas.listing import ListingResponse
+from app.services.saved_search_alert_service import SavedSearchAlertService
+
+
+logger = logging.getLogger(__name__)
 
 
 class ModerationListingNotFoundError(Exception):
@@ -33,6 +39,7 @@ class ListingModerationService:
         self._db = db
         self._listings = ListingRepository(db)
         self._assistant = AssistantRepository(db)
+        self._search_alerts = SavedSearchAlertService(db)
 
     def list_pending_listings(self) -> list[ListingResponse]:
         return [
@@ -73,6 +80,13 @@ class ListingModerationService:
             self._optional_reason(reason),
             self.ACTIVE_STATUS,
         )
+        try:
+            self._search_alerts.notify_for_approved_listing(listing)
+        except (RuntimeError, SQLAlchemyError):
+            logger.exception(
+                "Listing %s was approved but search alerts could not be sent",
+                listing.listing_id,
+            )
         return ListingResponse.model_validate(listing)
 
     def reject_listing(

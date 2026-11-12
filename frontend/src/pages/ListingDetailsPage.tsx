@@ -4,16 +4,28 @@ import {
   ApiError,
   buildApiUrl,
   createContactRequest,
+  deleteSavedListing,
+  getAmenities,
+  getMyRentalInterests,
+  getPublicInterestOpportunities,
   getPublicListingMapLocation,
+  getSavedListingStatus,
+  saveListing,
+  type InterestOpportunity,
+  type RentalInterest,
+  type RentalInterestStatus,
 } from "../api";
 import AppLink from "../components/AppLink";
+import RentalInterestRegistrationForm from "../components/RentalInterestRegistrationForm";
 import RoomMap from "../components/RoomMap";
 import type { Listing } from "../components/ListingCard";
+import type { Amenity } from "../types/listing";
 
 type ListingDetailsPageProps = {
   accessToken: string | null;
   isAuthReady: boolean;
   isAuthenticated: boolean;
+  isTenant: boolean;
   listingId: number;
   onReportListing?: (listingId: number) => void;
   onNavigate: (path: string) => void;
@@ -92,10 +104,29 @@ function formatDate(value: string): string {
   return new Intl.DateTimeFormat("en-ZA", { dateStyle: "medium" }).format(date);
 }
 
+const activeInterestStatuses: RentalInterestStatus[] = [
+  "active",
+  "waitlisted",
+  "contacted",
+  "invited_to_apply",
+];
+
+const interestStatusLabels: Record<RentalInterestStatus, string> = {
+  active: "Registered",
+  waitlisted: "Waitlisted",
+  contacted: "Contacted",
+  invited_to_apply: "Invited to apply",
+  converted: "Converted",
+  withdrawn: "Withdrawn",
+  expired: "Expired",
+  closed: "Closed",
+};
+
 export default function ListingDetailsPage({
   accessToken,
   isAuthReady,
   isAuthenticated,
+  isTenant,
   listingId,
   onReportListing,
   onNavigate,
@@ -120,6 +151,75 @@ export default function ListingDetailsPage({
   >(null);
   const [isSubmittingContactRequest, setIsSubmittingContactRequest] =
     useState(false);
+  const [isSaved, setIsSaved] = useState(false);
+  const [isLoadingSavedStatus, setIsLoadingSavedStatus] = useState(false);
+  const [isUpdatingSavedStatus, setIsUpdatingSavedStatus] = useState(false);
+  const [savedListingError, setSavedListingError] = useState<string | null>(
+    null,
+  );
+  const [savedListingNotice, setSavedListingNotice] = useState<string | null>(
+    null,
+  );
+  const [interestOpportunity, setInterestOpportunity] =
+    useState<InterestOpportunity | null>(null);
+  const [isLoadingInterestOpportunity, setIsLoadingInterestOpportunity] =
+    useState(true);
+  const [interestOpportunityError, setInterestOpportunityError] = useState<
+    string | null
+  >(null);
+  const [existingInterest, setExistingInterest] =
+    useState<RentalInterest | null>(null);
+  const [isLoadingExistingInterest, setIsLoadingExistingInterest] =
+    useState(false);
+  const [interestStatusError, setInterestStatusError] = useState<string | null>(
+    null,
+  );
+  const [interestFormOpen, setInterestFormOpen] = useState(false);
+  const [interestNotice, setInterestNotice] = useState<string | null>(null);
+  const [interestPreferences, setInterestPreferences] = useState<Amenity[]>([]);
+  const [interestPreferencesError, setInterestPreferencesError] = useState<
+    string | null
+  >(null);
+
+  function handleRegisterInterest(): void {
+    setInterestNotice(null);
+    if (accessToken === null) {
+      onNavigate(
+        `/login?returnTo=${encodeURIComponent(`/listings/${listingId}`)}`,
+      );
+      return;
+    }
+    setInterestFormOpen(true);
+  }
+
+  async function handleToggleSavedListing(): Promise<void> {
+    if (accessToken === null) {
+      return;
+    }
+
+    setSavedListingError(null);
+    setSavedListingNotice(null);
+    setIsUpdatingSavedStatus(true);
+    try {
+      if (isSaved) {
+        await deleteSavedListing(accessToken, listingId);
+        setIsSaved(false);
+        setSavedListingNotice("Room removed from your saved listings.");
+      } else {
+        await saveListing(accessToken, listingId);
+        setIsSaved(true);
+        setSavedListingNotice("Room saved to your tenant dashboard.");
+      }
+    } catch (saveError: unknown) {
+      setSavedListingError(
+        saveError instanceof Error
+          ? saveError.message
+          : "The room could not be saved.",
+      );
+    } finally {
+      setIsUpdatingSavedStatus(false);
+    }
+  }
 
   async function handleContactRequest(): Promise<void> {
     if (accessToken === null) {
@@ -181,7 +281,7 @@ export default function ListingDetailsPage({
             latitude: payload.approximate_latitude,
             longitude: payload.approximate_longitude,
           });
-        } else if (payload.has_map_location === true) {
+        } else {
           setIsLoadingMapLocation(true);
           try {
             const location = await getPublicListingMapLocation(
@@ -194,11 +294,18 @@ export default function ListingDetailsPage({
             });
           } catch (locationError: unknown) {
             if (!controller.signal.aborted) {
-              setMapLocationError(
-                locationError instanceof Error
-                  ? locationError.message
-                  : "The map location could not be loaded.",
-              );
+              if (
+                locationError instanceof ApiError &&
+                locationError.statusCode === 404
+              ) {
+                setMapLocationError(null);
+              } else {
+                setMapLocationError(
+                  locationError instanceof Error
+                    ? locationError.message
+                    : "The map location could not be loaded.",
+                );
+              }
             }
           } finally {
             if (!controller.signal.aborted) {
@@ -226,6 +333,160 @@ export default function ListingDetailsPage({
     void loadListing();
     return () => controller.abort();
   }, [listingId]);
+
+  useEffect(() => {
+    let active = true;
+    setIsLoadingInterestOpportunity(true);
+    setInterestOpportunityError(null);
+    setInterestOpportunity(null);
+    setInterestFormOpen(false);
+    setInterestNotice(null);
+    setInterestPreferences([]);
+    setInterestPreferencesError(null);
+
+    getPublicInterestOpportunities()
+      .then((opportunities) => {
+        if (active) {
+          setInterestOpportunity(
+            opportunities.find((item) => item.listing_id === listingId) ?? null,
+          );
+        }
+      })
+      .catch((requestError: unknown) => {
+        if (active) {
+          setInterestOpportunityError(
+            requestError instanceof Error
+              ? requestError.message
+              : "Future availability could not be checked.",
+          );
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setIsLoadingInterestOpportunity(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [listingId]);
+
+  useEffect(() => {
+    if (accessToken === null || interestOpportunity === null) {
+      setExistingInterest(null);
+      setIsLoadingExistingInterest(false);
+      setInterestStatusError(null);
+      return;
+    }
+
+    let active = true;
+    setIsLoadingExistingInterest(true);
+    setInterestStatusError(null);
+    getMyRentalInterests(accessToken)
+      .then((interests) => {
+        if (active) {
+          setExistingInterest(
+            interests.find(
+              (interest) =>
+                interest.opportunity.opportunity_id ===
+                  interestOpportunity.opportunity_id &&
+                activeInterestStatuses.includes(interest.status),
+            ) ?? null,
+          );
+        }
+      })
+      .catch((requestError: unknown) => {
+        if (active) {
+          setInterestStatusError(
+            requestError instanceof Error
+              ? requestError.message
+              : "Your registration status could not be checked.",
+          );
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setIsLoadingExistingInterest(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [accessToken, interestOpportunity]);
+
+  useEffect(() => {
+    if (
+      !interestFormOpen ||
+      accessToken === null ||
+      interestPreferences.length > 0
+    ) {
+      return;
+    }
+    let active = true;
+    getAmenities()
+      .then((amenities) => {
+        if (active) {
+          setInterestPreferences(amenities);
+          setInterestPreferencesError(null);
+        }
+      })
+      .catch((requestError: unknown) => {
+        if (active) {
+          setInterestPreferencesError(
+            requestError instanceof Error
+              ? requestError.message
+              : "Optional amenity preferences could not be loaded.",
+          );
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [accessToken, interestFormOpen, interestPreferences.length]);
+
+  const opportunityCanRegister =
+    interestOpportunity?.availability_status === "open" ||
+    (interestOpportunity?.availability_status === "full" &&
+      interestOpportunity.waitlist_enabled);
+  const canAccessRegistration =
+    isAuthReady && (isTenant || !isAuthenticated);
+
+  useEffect(() => {
+    if (accessToken === null) {
+      setIsSaved(false);
+      setIsLoadingSavedStatus(false);
+      return;
+    }
+
+    let active = true;
+    setIsLoadingSavedStatus(true);
+    getSavedListingStatus(accessToken, listingId)
+      .then((result) => {
+        if (active) {
+          setIsSaved(result.saved);
+        }
+      })
+      .catch((statusError: unknown) => {
+        if (active) {
+          setSavedListingError(
+            statusError instanceof Error
+              ? statusError.message
+              : "Saved listing status could not be loaded.",
+          );
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setIsLoadingSavedStatus(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [accessToken, listingId]);
 
   return (
     <main
@@ -405,6 +666,36 @@ export default function ListingDetailsPage({
                 </p>
               )}
             </section>
+            <section aria-label="Save room" style={{ marginTop: 24 }}>
+              {accessToken !== null ? (
+                <button
+                  className="secondary-button"
+                  disabled={isLoadingSavedStatus || isUpdatingSavedStatus}
+                  onClick={() => void handleToggleSavedListing()}
+                  type="button"
+                >
+                  {isLoadingSavedStatus
+                    ? "Checking saved status…"
+                    : isUpdatingSavedStatus
+                      ? "Updating…"
+                      : isSaved
+                        ? "Remove from saved rooms"
+                        : "Save this room"}
+                </button>
+              ) : !isAuthenticated ? (
+                <AppLink href="/login" onNavigate={onNavigate}>
+                  Sign in as a tenant to save this room
+                </AppLink>
+              ) : null}
+              {savedListingError !== null && (
+                <p role="alert" style={{ color: "#9b2820" }}>
+                  {savedListingError}
+                </p>
+              )}
+              {savedListingNotice !== null && (
+                <p role="status">{savedListingNotice}</p>
+              )}
+            </section>
             {isAuthReady && (
               <section
                 aria-label="Contact request"
@@ -443,6 +734,162 @@ export default function ListingDetailsPage({
                     {contactRequestNotice}{" "}
                     <AppLink href="/conversations" onNavigate={onNavigate}>
                       Open messages
+                    </AppLink>
+                  </p>
+                )}
+              </section>
+            )}
+            {isLoadingInterestOpportunity && isAuthReady && (
+              <p role="status" style={{ marginTop: 24 }}>
+                Checking future availability…
+              </p>
+            )}
+            {interestOpportunityError !== null && isAuthReady && (
+              <p role="alert" style={{ color: "#9b2820", marginTop: 24 }}>
+                Future-interest availability could not be checked:{" "}
+                {interestOpportunityError}
+              </p>
+            )}
+            {interestOpportunity !== null && (
+              <section
+                aria-label="Future rental interest"
+                style={{ marginTop: 28 }}
+              >
+                <h2>Future availability</h2>
+                <p>
+                  {interestOpportunity.address} · {interestOpportunity.area_name} ·{" "}
+                  {formatCurrency(interestOpportunity.monthly_rent)}/month
+                </p>
+                <p>
+                  Expected from {formatDate(interestOpportunity.available_from)}
+                  {interestOpportunity.available_until !== null
+                    ? ` to ${formatDate(interestOpportunity.available_until)}`
+                    : ""}
+                  {interestOpportunity.available_units !== null
+                    ? ` · ${interestOpportunity.available_units} unit(s) expected`
+                    : ""}
+                </p>
+                {interestOpportunity.expected_rental_duration_months !==
+                  null && (
+                  <p>
+                    Expected rental period:{" "}
+                    {interestOpportunity.expected_rental_duration_months}{" "}
+                    months
+                  </p>
+                )}
+                <p>
+                  Opportunity status:{" "}
+                  {interestOpportunity.availability_status === "open"
+                    ? "Open"
+                    : interestOpportunity.availability_status === "full"
+                      ? "Full"
+                      : "Closed"}
+                  {" · "}Active registration capacity:{" "}
+                  {interestOpportunity.active_registration_count}/
+                  {interestOpportunity.max_active_registrations}
+                  {interestOpportunity.waitlist_count > 0
+                    ? ` · ${interestOpportunity.waitlist_count} on the waitlist`
+                    : ""}
+                </p>
+                {interestOpportunity.availability_status === "closed" && (
+                  <p role="status">
+                    This opportunity is closed to new registrations.
+                  </p>
+                )}
+                {interestOpportunity.availability_status === "full" && (
+                    <p role="status">
+                      The active registration capacity is full.
+                      {interestOpportunity.waitlist_enabled
+                        ? " If you submit the form, you will be asked to explicitly confirm joining the waiting list."
+                        : " Waiting-list registration is unavailable."}
+                    </p>
+                )}
+                {existingInterest !== null ? (
+                  <p role="status">
+                    Your interest is {interestStatusLabels[existingInterest.status].toLowerCase()}.{" "}
+                    <AppLink href="/tenant" onNavigate={onNavigate}>
+                      View your future interests
+                    </AppLink>
+                  </p>
+                ) : canAccessRegistration &&
+                  opportunityCanRegister &&
+                  interestStatusError === null ? (
+                  <>
+                    <button
+                      className="primary-button"
+                      disabled={isLoadingExistingInterest}
+                      onClick={handleRegisterInterest}
+                      type="button"
+                    >
+                      {isLoadingExistingInterest
+                        ? "Checking registration…"
+                        : "Register Interest"}
+                    </button>
+                    {interestFormOpen && isTenant && accessToken !== null && (
+                      <div className="rental-interest-existing">
+                        <p>
+                          Registering is free and does not reserve the room.
+                          No payment or deposit is required. A registration
+                          does not guarantee accommodation.
+                        </p>
+                        {interestPreferencesError !== null && (
+                          <p role="alert">
+                            Optional amenity preferences could not be loaded:{" "}
+                            {interestPreferencesError}
+                          </p>
+                        )}
+                        <RentalInterestRegistrationForm
+                          accessToken={accessToken}
+                          amenities={interestPreferences}
+                          key={interestOpportunity.opportunity_id}
+                          onRegistered={(interest) => {
+                            setExistingInterest(interest);
+                            setInterestFormOpen(false);
+                            setInterestNotice(
+                              interest.status === "waitlisted"
+                                ? "You joined the waitlist."
+                                : "Your interest was registered.",
+                            );
+                          }}
+                          opportunity={interestOpportunity}
+                        />
+                        <button
+                          className="rental-interest-text-button"
+                          onClick={() => setInterestFormOpen(false)}
+                          type="button"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    )}
+                  </>
+                ) : isAuthenticated && !isTenant ? (
+                  <p role="status">
+                    Future rental interest registration is available to tenant
+                    accounts.
+                  </p>
+                ) : !isAuthenticated &&
+                  isAuthReady &&
+                  opportunityCanRegister ? (
+                  <button
+                    className="primary-button"
+                    onClick={handleRegisterInterest}
+                    type="button"
+                  >
+                    Register Interest
+                  </button>
+                ) : null}
+                {interestStatusError !== null && (
+                  <p role="alert" style={{ color: "#9b2820" }}>
+                    Your registration status could not be checked:{" "}
+                    {interestStatusError}
+                  </p>
+                )}
+                {interestNotice !== null && (
+                  <p role="status">
+                    {interestNotice}{" "}
+                    <AppLink href="/tenant" onNavigate={onNavigate}>
+                      Manage your interests
                     </AppLink>
                   </p>
                 )}

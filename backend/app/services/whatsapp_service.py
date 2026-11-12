@@ -5,6 +5,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
+from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -23,6 +24,7 @@ from app.models.conversation import (
     Message,
 )
 from app.models.whatsapp import WhatsAppContact, WhatsAppMessage
+from app.models.saved_search import SavedSearch
 from app.services.whatsapp_provider import (
     WhatsAppCloudAPI,
     WhatsAppProviderError,
@@ -111,6 +113,11 @@ class WhatsAppService:
             contact.opted_in_at = None
             contact.opted_out_at = None
 
+        self._db.execute(
+            update(SavedSearch)
+            .where(SavedSearch.tenant_id == user_id)
+            .values(alerts_enabled=False, alerts_opted_in_at=None),
+        )
         contact.verification_code_hash = verification_code_hash(user_id, code)
         contact.verification_expires_at = now + _VERIFICATION_LIFETIME
         contact.verification_attempts = 0
@@ -159,7 +166,12 @@ class WhatsAppService:
         contact = self._db.get(WhatsAppContact, user_id)
         if contact is not None:
             self._db.delete(contact)
-            self._commit()
+        self._db.execute(
+            update(SavedSearch)
+            .where(SavedSearch.tenant_id == user_id)
+            .values(alerts_enabled=False, alerts_opted_in_at=None),
+        )
+        self._commit()
 
     def deliver_website_message(
         self,

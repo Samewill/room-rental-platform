@@ -20,7 +20,9 @@ import AppLink from "../components/AppLink";
 import GoogleAddressSearch, {
   type GoogleAddressSelection,
 } from "../components/GoogleAddressSearch";
-import RoomMap from "../components/RoomMap";
+import LandlordRentalInterestsPanel from "../components/LandlordRentalInterestsPanel";
+import RentalInterestNotificationsPanel from "../components/RentalInterestNotificationsPanel";
+import RoomMap, { type MapPoint } from "../components/RoomMap";
 import type {
   Amenity,
   Area,
@@ -313,6 +315,15 @@ export default function LandlordDashboardPage({
     }));
   }
 
+  function updateMapPoint(point: MapPoint): void {
+    setForm((current) => ({
+      ...current,
+      googlePlaceId: null,
+      latitude: point.latitude,
+      longitude: point.longitude,
+    }));
+  }
+
   function startEditing(listing: Listing): void {
     setMapSearchAddress(listing.address);
     setEditingListingId(listing.listing_id);
@@ -518,6 +529,9 @@ export default function LandlordDashboardPage({
               <span className="landlord-nav-count">{pendingRequestCount}</span>
             )}
           </a>
+          <a href="#future-interest">
+            <span aria-hidden="true">⌁</span> Future interest
+          </a>
         </nav>
         <div className="landlord-sidebar-bottom">
           <AppLink href="/" onNavigate={onNavigate}>
@@ -634,6 +648,20 @@ export default function LandlordDashboardPage({
           <p className="message message-success" role="status">
             {notice}
           </p>
+        )}
+
+        {!isLoading && (
+          <RentalInterestNotificationsPanel
+            accessToken={accessToken}
+            onNavigate={onNavigate}
+          />
+        )}
+
+        {!isLoading && (
+          <LandlordRentalInterestsPanel
+            accessToken={accessToken}
+            listings={listings}
+          />
         )}
 
         <div className="landlord-dashboard-grid">
@@ -882,13 +910,13 @@ export default function LandlordDashboardPage({
               <label>
                 Search and select an address
                 <GoogleAddressSearch
-                  onChange={setMapSearchAddress}
+                  onChange={updateAddress}
                   onResultSelected={selectAddress}
                   value={mapSearchAddress}
                 />
                 <small>
                   Search suggestions appear as you type. Select a Google Maps
-                  result to place the room on the map.
+                  result to fill in the room address and place it on the map.
                 </small>
               </label>
               <label>
@@ -915,8 +943,14 @@ export default function LandlordDashboardPage({
                 Your exact pin is private. Public room details will show only
                 an approximate location.
               </p>
+              <p>
+                Drag the pin to adjust its location. Moving it clears the
+                selected Google Place ID and saves the adjusted coordinates.
+              </p>
               <RoomMap
+                draggable
                 label="Choose the room's map location"
+                onPointChange={updateMapPoint}
                 placeId={form.googlePlaceId}
                 point={
                   form.latitude === null || form.longitude === null

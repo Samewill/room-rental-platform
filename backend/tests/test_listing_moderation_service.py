@@ -23,6 +23,7 @@ class ListingModerationServiceTests(unittest.TestCase):
         self.service = ListingModerationService(self.db)
         self.service._listings = self.repository
         self.service._assistant = self.assistant_repository
+        self.service._search_alerts = Mock()
 
     @staticmethod
     def make_listing(
@@ -127,6 +128,9 @@ class ListingModerationServiceTests(unittest.TestCase):
             None,
         )
         self.db.commit.assert_called_once()
+        self.service._search_alerts.notify_for_approved_listing.assert_called_once_with(
+            listing,
+        )
 
     def test_rejection_notifies_landlord_with_reason(self) -> None:
         self.repository.get_by_id.return_value = self.make_listing()

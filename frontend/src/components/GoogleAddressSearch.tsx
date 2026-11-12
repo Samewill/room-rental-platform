@@ -39,7 +39,7 @@ export default function GoogleAddressSearch({
     onChangeRef.current = onChange;
     onResultSelectedRef.current = onResultSelected;
     valueRef.current = value;
-  }, [onChange, onResultSelected]);
+  }, [onChange, onResultSelected, value]);
 
   useEffect(() => {
     let active = true;
@@ -53,7 +53,12 @@ export default function GoogleAddressSearch({
         }
 
         autocomplete = new places.PlaceAutocompleteElement({
-          includedRegionCodes: ["za"],
+          locationBias: {
+            east: 33.2,
+            north: -22.1,
+            south: -35.1,
+            west: 16.4,
+          },
           placeholder: "Search an address or area",
           requestedRegion: "za",
           maxlength: 200,
@@ -64,6 +69,13 @@ export default function GoogleAddressSearch({
         autocomplete.className = "google-address-autocomplete";
         autocomplete.addEventListener("input", () => {
           onChangeRef.current(autocomplete?.value ?? "");
+        });
+        autocomplete.addEventListener("gmp-error", () => {
+          if (active) {
+            setErrorMessage(
+              "Google Maps could not retrieve suggestions. Check that Places API (New) is enabled and this website is allowed for the browser API key.",
+            );
+          }
         });
         autocomplete.addEventListener("gmp-select", (event) => {
           void selectPlace(
@@ -101,7 +113,8 @@ export default function GoogleAddressSearch({
           throw new Error("Google Maps did not return a location for this place.");
         }
 
-        const address = valueRef.current.trim();
+        const address =
+          place.formattedAddress?.trim() || valueRef.current.trim();
         if (!address) {
           throw new Error("Enter an address before selecting a Google result.");
         }

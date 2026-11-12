@@ -12,6 +12,8 @@ type RoomMapProps = {
   point: MapPoint | null;
   label: string;
   approximate?: boolean;
+  draggable?: boolean;
+  onPointChange?: (point: MapPoint) => void;
   placeId?: string | null;
 };
 
@@ -24,6 +26,8 @@ export default function RoomMap({
   point,
   label,
   approximate = false,
+  draggable = false,
+  onPointChange,
   placeId = null,
 }: RoomMapProps) {
   const mapElementRef = useRef<HTMLDivElement | null>(null);
@@ -31,7 +35,11 @@ export default function RoomMap({
   const markerRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(
     null,
   );
+  const onPointChangeRef = useRef(onPointChange);
+  const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
+
+  onPointChangeRef.current = onPointChange;
 
   useEffect(() => {
     let active = true;
@@ -55,10 +63,38 @@ export default function RoomMap({
           fullscreenControl: false,
         });
         mapRef.current = map;
-        markerRef.current = new marker.AdvancedMarkerElement({
+        const pin = document.createElement("span");
+        pin.setAttribute("aria-hidden", "true");
+        pin.textContent = "📍";
+        pin.style.fontSize = "32px";
+        pin.style.lineHeight = "1";
+        const mapMarker = new marker.AdvancedMarkerElement({
           map,
           title: label,
+          gmpDraggable: draggable,
+          content: pin,
         });
+        markerRef.current = mapMarker;
+        setMapReady(true);
+        if (draggable) {
+          mapMarker.addListener("dragend", () => {
+            const position = mapMarker.position;
+            if (position === null || position === undefined) {
+              return;
+            }
+
+            onPointChangeRef.current?.({
+              latitude:
+                typeof position.lat === "function"
+                  ? position.lat()
+                  : position.lat,
+              longitude:
+                typeof position.lng === "function"
+                  ? position.lng()
+                  : position.lng,
+            });
+          });
+        }
       } catch (error: unknown) {
         if (active) {
           setMapError(
@@ -73,13 +109,14 @@ export default function RoomMap({
     void createMap();
     return () => {
       active = false;
+      setMapReady(false);
       if (markerRef.current !== null) {
         markerRef.current.map = null;
         markerRef.current = null;
       }
       mapRef.current = null;
     };
-  }, [label]);
+  }, [draggable, label]);
 
   useEffect(() => {
     let active = true;
@@ -87,7 +124,7 @@ export default function RoomMap({
     async function updateMapLocation(): Promise<void> {
       const map = mapRef.current;
       const marker = markerRef.current;
-      if (map === null || marker === null) {
+      if (!mapReady || map === null || marker === null) {
         return;
       }
 
@@ -141,7 +178,7 @@ export default function RoomMap({
     return () => {
       active = false;
     };
-  }, [label, placeId, point?.latitude, point?.longitude]);
+  }, [label, mapReady, placeId, point?.latitude, point?.longitude]);
 
   return (
     <section aria-label={label} className="room-map">
